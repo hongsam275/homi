@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notion 임베드 여행 플래너</title>
+    <title>여행 플래너 (Firebase 클라우드 복원)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -17,12 +17,24 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        /* Custom scrollbar for better mobile/embed view */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #34d399; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #059669; }
+        ::-webkit-scrollbar-track { background: #f0fdf4; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800" style="font-family: Inter, 'Apple SD Gothic Neo', 'Malgun Gothic', 'NanumGothic', Dotum, sans-serif;">
 
-    <div id="app-container">
-        <!-- 초기 로딩 스크린 없이 바로 렌더링 됩니다. -->
+    <div id="app-container" class="min-h-screen flex flex-col">
+        <div id="loading-screen" class="flex-1 flex flex-col items-center justify-center p-8 text-teal-600 bg-gray-50">
+            <svg class="animate-spin h-8 w-8 text-teal-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 font-semibold text-lg">데이터 로드 중...</p>
+            <p id="auth-status" class="text-xs text-gray-500 mt-2">인증 대기 중</p>
+        </div>
     </div>
     
     <!-- Main HTML Template -->
@@ -31,21 +43,24 @@
             <div class="max-w-4xl mx-auto flex justify-between items-center">
                 <h1 class="text-xl font-bold flex items-center gap-2">
                     <i data-lucide="map-pin" class="w-6 h-6"></i>
-                    Notion 임베드 여행 플래너
+                    여행 플래너 (클라우드 동기화)
                 </h1>
                 <div class="flex items-center gap-4">
                     <!-- 현재 저장소 상태 표시 -->
                     <div class="flex items-center text-xs bg-teal-500 py-1 px-2 rounded-full">
-                        <i data-lucide="hard-drive" class='w-3 h-3 mr-1'></i> 저장소: 로컬 전용 (비공유)
+                        <i data-lucide="cloud" class='w-3 h-3 mr-1'></i> 저장소: Firebase (실시간 동기화)
                     </div>
                     <button id="reset-button" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">
                         <i data-lucide="rotate-ccw" class='w-3 h-3'></i> 초기화
                     </button>
                 </div>
             </div>
+            <div class="max-w-4xl mx-auto mt-2 text-xs text-teal-200">
+                 <span id="user-id-display"></span>
+            </div>
         </header>
         
-        <div class="max-w-4xl mx-auto p-4">
+        <div class="max-w-4xl mx-auto p-4 flex-1">
             <!-- Navigation Tabs -->
             <div id="tab-navigation" class="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow-sm">
                 <!-- Tabs will be rendered here -->
@@ -61,7 +76,7 @@
         <div id="modal-backdrop" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 items-center justify-center z-50">
             <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
                 <h3 class="text-xl font-bold text-gray-800 mb-4">⚠️ 데이터 초기화 확인</h3>
-                <p class="text-gray-600 mb-6">현재 브라우저에 저장된 모든 여행 계획 데이터가 삭제되고 초기 상태로 돌아갑니다. 계속하시겠습니까?</p>
+                <p class="text-gray-600 mb-6">클라우드에 저장된 현재 사용자 계정의 모든 여행 계획 데이터가 삭제됩니다. 계속하시겠습니까?</p>
                 <div class="flex justify-end gap-3">
                     <button id="cancel-reset" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition">
                         취소
@@ -75,35 +90,26 @@
     </template>
 
 
-    <script type="text/javascript">
-        // 로컬 저장소 키 (데이터는 이 브라우저에만 저장됨)
-        const LOCAL_STORAGE_KEY = 'travelPlannerData';
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, getDoc, setLogLevel, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global State and Constants
+        // --- Global Variables (Provided by Canvas Environment) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // --- Firebase & App State ---
+        let app, db, auth;
+        let userId = null;
         let data = null;
         let activeTab = 'overview';
         let isComposing = false; // Flag for Hangul composition
 
-        const initialData = {
-            destination: '제주도',
-            startDate: '',
-            endDate: '',
-            budget: 500000,
-            packingList: [
-                { id: 1, text: '여권', checked: false },
-                { id: 2, text: '선크림', checked: false },
-            ],
-            schedule: [
-                { id: 4, day: 1, morning: '오전 일정', afternoon: '오후 일정', evening: '저녁 일정' },
-            ],
-            souvenirs: [],
-            expenses: [],
-            keyLocations: [
-                { id: 101, name: '성산일출봉' },
-                { id: 102, name: '협재 해수욕장' },
-            ],
-        };
-        
+        // --- Constants ---
+        const INITIAL_PLAN_ID = 'travelPlan';
         const TABS = [
             { id: 'overview', label: '여행 개요', icon: 'map' },
             { id: 'schedule', label: '일정표', icon: 'calendar' },
@@ -112,45 +118,84 @@
             { id: 'expense', label: '가계부', icon: 'dollar-sign' },
         ];
 
-        // --- Local Storage Data Synchronization ---
+        const initialData = {
+            destination: '제주도',
+            startDate: '',
+            endDate: '',
+            budget: 500000,
+            packingList: [
+                { id: Date.now() + 1, text: '여권', checked: false },
+                { id: Date.now() + 2, text: '선크림', checked: false },
+            ],
+            schedule: [
+                { id: Date.now() + 3, day: 1, morning: '오전 일정', afternoon: '오후 일정', evening: '저녁 일정' },
+            ],
+            souvenirs: [],
+            expenses: [],
+            keyLocations: [
+                { id: Date.now() + 4, name: '성산일출봉' },
+                { id: Date.now() + 5, name: '협재 해수욕장' },
+            ],
+        };
 
-        /**
-         * Loads data from browser's local storage or returns initial data.
-         */
-        function loadLocalData() {
-            const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (savedData) {
-                try {
-                    const parsedData = JSON.parse(savedData);
-                    // keyLocations 호환성 유지
-                    if (!parsedData.keyLocations) {
-                        parsedData.keyLocations = initialData.keyLocations;
-                    }
-                    return parsedData;
-                } catch (e) {
-                    console.error("Error parsing local storage data. Using initial data.", e);
-                    return initialData;
-                }
-            }
-            return initialData;
+        // --- Firestore Utility ---
+        function getPlanDocRef(uid) {
+            // Private path: /artifacts/{appId}/users/{userId}/plannerData/travelPlan
+            const plannerCollection = collection(db, `artifacts/${appId}/users/${uid}/plannerData`);
+            return doc(plannerCollection, INITIAL_PLAN_ID);
         }
 
         /**
-         * Saves the current state of data to local storage and re-renders.
-         * @param {object} newData - The data object to save.
+         * Saves the entire data object to Firestore.
          */
-        function updateLocal(newData) {
+        async function updateFirestore(newData) {
+            if (!userId) {
+                console.error("Firestore update failed: User ID is null.");
+                return;
+            }
             try {
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newData));
+                // IMPORTANT: Ensure all ID fields are correctly managed before saving.
+                await setDoc(getPlanDocRef(userId), newData, { merge: true });
                 data = newData;
-                render();
+                // Note: The render() will be called automatically by the onSnapshot listener.
             } catch (e) {
-                console.error("ERROR: Error saving data to local storage:", e);
-                data = newData;
-                render();
+                console.error("ERROR: Failed to update Firestore document:", e);
             }
         }
-        
+
+        /**
+         * Fetches data from Firestore and sets up a real-time listener.
+         */
+        function fetchData() {
+            if (!db || !userId) {
+                console.error("DB or User ID not ready for fetching.");
+                return;
+            }
+
+            const docRef = getPlanDocRef(userId);
+
+            // Set up real-time listener
+            onSnapshot(docRef, async (docSnap) => {
+                if (docSnap.exists()) {
+                    // Data exists, use it
+                    console.log("Real-time data received.");
+                    data = docSnap.data();
+                } else {
+                    // Data does not exist (first time use), initialize it
+                    console.log("No existing data found. Initializing new plan...");
+                    data = initialData;
+                    // Save the initial data to the cloud immediately
+                    await setDoc(docRef, initialData);
+                }
+                // Always render after data is set or updated
+                render();
+            }, (error) => {
+                console.error("Firestore Snapshot Listener Error:", error);
+                document.getElementById('auth-status').textContent = `데이터 로드 오류: ${error.code}`;
+                document.getElementById('auth-status').classList.add('text-red-500');
+            });
+        }
+
         // --- Input Handling (Hangul Fix) ---
         
         document.addEventListener('compositionstart', (e) => {
@@ -188,45 +233,59 @@
 
             if (!field) return;
 
+            // Deep clone data to modify
+            let newData = JSON.parse(JSON.stringify(data));
+
             if (contextList && contextId) {
                 // Handle complex list updates (schedule, keyLocations)
-                let updatedList = data[contextList].map(item => 
+                let updatedList = newData[contextList].map(item => 
                     String(item.id) === contextId ? { ...item, [field]: value } : item
                 );
-                updateLocal({ ...data, [contextList]: updatedList });
+                newData[contextList] = updatedList;
 
             } else {
                 // Handle simple field updates (destination, budget, etc.)
                 const newValue = field === 'budget' ? parseInt(value) || 0 : value;
-                updateLocal({ ...data, [field]: newValue });
+                newData[field] = newValue;
             }
+            updateFirestore(newData);
         }
 
         // --- Utility Functions ---
         function setActiveTab(tabId) { activeTab = tabId; render(); }
+        
         function addItem(listName, newItem) {
-            const id = Date.now() + Math.random();
-            const updatedList = [...data[listName], { ...newItem, id }];
-            updateLocal({ ...data, [listName]: updatedList });
+            let newData = JSON.parse(JSON.stringify(data));
+            const id = Date.now() + Math.floor(Math.random() * 1000);
+            newData[listName] = [...newData[listName], { ...newItem, id }];
+            updateFirestore(newData);
         }
+        
         function deleteItem(listName, id) {
-            const updatedList = data[listName].filter(item => item.id !== id);
-            updateLocal({ ...data, [listName]: updatedList });
+            let newData = JSON.parse(JSON.stringify(data));
+            newData[listName] = newData[listName].filter(item => item.id !== id);
+            updateFirestore(newData);
         }
+        
+        function confirmReset() { 
+            updateFirestore(initialData); 
+            showModal(false); 
+        } 
+
         function showModal(isVisible) { 
             const modal = document.getElementById('modal-backdrop');
             if (modal) { modal.classList.toggle('hidden', !isVisible); modal.classList.toggle('flex', isVisible); }
         }
-        function confirmReset() { 
-            updateLocal(initialData); 
-            showModal(false); 
-        } 
+        
         function calculateRemainingBudget(budget, expenses) {
             const total = expenses.reduce((sum, item) => sum + Number(item.cost || 0), 0);
             return Number(budget) - total;
         }
 
         // --- Render Functions (UI Generation) ---
+        
+        // Functions to generate HTML content... (omitted for brevity, assume they are restored as before)
+        // Note: The previous HTML rendering functions are extensive. We restore the functional body below.
 
         function renderTabs() { 
             const tabNav = document.getElementById('tab-navigation');
@@ -265,16 +324,18 @@
             window.deleteItem = deleteItem;
             window.addItem = addItem;
             window.toggleCheck = (listName, id) => {
-                const updatedList = data[listName].map(item => item.id === id ? { ...item, checked: !item.checked } : item);
-                updateLocal({ ...data, [listName]: updatedList });
+                let newData = JSON.parse(JSON.stringify(data));
+                newData[listName] = newData[listName].map(item => item.id === id ? { ...item, checked: !item.checked } : item);
+                updateFirestore(newData);
             };
             window.addPackingItem = () => { 
                 const input = document.getElementById('newPackingItem'); 
                 if (input.value.trim()) { window.addItem('packingList', { text: input.value, checked: false }); input.value = ''; } 
             };
             window.toggleSouvenir = (id) => {
-                const updatedList = data.souvenirs.map(item => item.id === id ? { ...item, bought: !item.bought } : item);
-                updateLocal({ ...data, souvenirs: updatedList });
+                let newData = JSON.parse(JSON.stringify(data));
+                newData.souvenirs = newData.souvenirs.map(item => item.id === id ? { ...item, bought: !item.bought } : item);
+                updateFirestore(newData);
             };
             window.addSouvenirItem = () => {
                 const item = document.getElementById('souvenirItem'); const receiver = document.getElementById('souvenirReceiver');
@@ -298,40 +359,16 @@
             });
             lucide.createIcons();
         }
-
-        // --- Main Render Function ---
-        function render() {
-            if (!data) return;
-            
-            const appContainer = document.getElementById('app-container');
-            if (appContainer.querySelector('#main-template') === null) {
-                // Initial render: inject main content
-                const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
-                appContainer.innerHTML = '';
-                appContainer.appendChild(mainTemplate);
-                
-                // Bind static events once
-                document.getElementById('reset-button').onclick = () => showModal(true);
-                document.getElementById('cancel-reset').onclick = () => showModal(false);
-                document.getElementById('confirm-reset').onclick = confirmReset;
-            }
-            
-            renderTabs();
-            renderContent();
-            lucide.createIcons();
-        }
         
-        // --- Simplified HTML Content Generation Functions ---
+        // --- Simplified HTML Content Generation Functions (Restored) ---
         
         function renderOverviewHtml() { 
             const remainingBudget = calculateRemainingBudget(data.budget, data.expenses);
             
-            // --- 지도 URL 생성 로직 (개선된 핀 기능) ---
             const locationNames = [data.destination, ...data.keyLocations.map(l => l.name)];
             const mapQuery = locationNames.filter(name => name.trim()).join('+to+');
             const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=11&ie=UTF8&iwloc=&output=embed`;
             
-            // Key Locations 리스트 HTML
             const keyLocationsHtml = data.keyLocations.map(loc => `
                 <div class="flex items-center justify-between p-2 bg-white border border-gray-100 rounded-lg shadow-sm">
                     <input type="text" value="${loc.name}" 
@@ -381,7 +418,7 @@
                     <!-- 🗺️ 지도에 표시할 주요 장소 섹션 -->
                     <div class="mt-8">
                         <h3 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">📍 지도에 표시할 주요 장소</h3>
-                        <p class="text-sm text-gray-500 mb-3">* 여기에 장소를 입력하면 지도에 핀처럼 표시됩니다. (로컬 저장)</p>
+                        <p class="text-sm text-gray-500 mb-3">* 여기에 장소를 입력하면 지도에 핀처럼 표시됩니다.</p>
                         <div class="flex gap-2 mb-4">
                             <input id="newKeyLocation" type="text" placeholder="새 장소 이름 입력 (예: 해변, 맛집)" 
                                    class="flex-1 border rounded-lg p-2" 
@@ -433,25 +470,84 @@
             const expenseRows = data.expenses.map(e => `<tr key="${e.id}" class="border-b hover:bg-gray-50"><td class="p-3 text-gray-500"><span class="bg-gray-200 text-xs px-2 py-1 rounded">${e.category}</span></td><td class="p-3">${e.item}</td><td class="p-3 text-right font-medium">${e.cost.toLocaleString()}원</td><td class="p-3 text-center"><button onclick="window.deleteItem('expenses', ${e.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" size="14"></i></button></td></tr>`).join('');
             return `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800 border-b pb-2">💸 여행 가계부</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><div class="bg-gray-50 p-4 rounded-lg border"><p class="text-sm text-gray-500">총 예산</p><p class="text-xl font-bold text-gray-800">${Number(data.budget).toLocaleString()}원</p></div><div class="bg-red-50 p-4 rounded-lg border border-red-100"><p class="text-sm text-red-500">총 지출</p><p class="text-xl font-bold text-red-700">${totalExpense.toLocaleString()}원</p></div><div class="p-4 rounded-lg border ${remainingBudget >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-red-100 border-red-200'}"><p class="text-sm ${remainingBudget >= 0 ? 'text-blue-500' : 'text-red-500'}">남은 돈</p><p class="text-xl font-bold ${remainingBudget >= 0 ? 'text-blue-700' : 'text-red-700'}`}${remainingBudget.toLocaleString()}원</p></div></div><div class="flex gap-2 mb-4 flex-wrap"><select id="expenseCat" class="border rounded p-2 text-sm"><option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option></select><input id="expenseItem" type="text" placeholder="내용 (예: 점심)" class="flex-1 border rounded p-2 text-sm min-w-[120px]" /><input id="expenseCost" type="number" placeholder="금액" class="w-24 border rounded p-2 text-sm text-right" /><button onclick="window.addExpenseItem()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button></div><div class="overflow-x-auto max-h-[400px] overflow-y-auto"><table class="w-full text-left border-collapse text-sm"><thead class="bg-gray-100 sticky top-0"><tr><th class="p-3 w-20">분류</th><th class="p-3">내역</th><th class="p-3 text-right">금액</th><th class="p-3 w-12 text-center">삭제</th></tr></thead><tbody>${expenseRows}</tbody></table></div></div>`;
         }
+        // --- Main Render Function ---
+        function render() {
+            if (!data) return;
+            
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) loadingScreen.remove();
+
+            const appContainer = document.getElementById('app-container');
+            if (!appContainer.querySelector('#main-template')) {
+                const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
+                appContainer.innerHTML = '';
+                appContainer.appendChild(mainTemplate);
+                
+                // Bind static events once
+                document.getElementById('reset-button').onclick = () => showModal(true);
+                document.getElementById('cancel-reset').onclick = () => showModal(false);
+                document.getElementById('confirm-reset').onclick = confirmReset;
+
+                // Display User ID
+                document.getElementById('user-id-display').textContent = `현재 사용자 ID: ${userId}`;
+            }
+            
+            renderTabs();
+            renderContent();
+            lucide.createIcons();
+        }
 
         // --- Initialization ---
-        window.onload = function() {
-            // 1. 데이터 로드 (로컬 저장소)
-            data = loadLocalData();
 
-            // 2. 메인 UI 렌더링
-            const appContainer = document.getElementById('app-container');
-            const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
-            appContainer.innerHTML = '';
-            appContainer.appendChild(mainTemplate);
+        async function initFirebase() {
+            if (!firebaseConfig) {
+                console.error("Firebase config is missing.");
+                document.getElementById('auth-status').textContent = "오류: Firebase 설정 정보를 찾을 수 없습니다.";
+                return;
+            }
             
-            // 3. 정적 이벤트 바인딩
-            document.getElementById('reset-button').onclick = () => showModal(true);
-            document.getElementById('cancel-reset').onclick = () => showModal(false);
-            document.getElementById('confirm-reset').onclick = confirmReset;
+            setLogLevel('debug'); // Enable Firestore logging
             
-            // 4. 초기 렌더링 시작
-            render();
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            document.getElementById('auth-status').textContent = "인증 중...";
+
+            // 1. Authenticate the user
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                    console.log("Signed in with custom token.");
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("Signed in anonymously.");
+                }
+            } catch (error) {
+                console.error("Firebase Authentication Error:", error);
+                document.getElementById('auth-status').textContent = `인증 오류: ${error.code}`;
+                return;
+            }
+
+            // 2. Wait for auth state change to get the final userId
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    document.getElementById('auth-status').textContent = `사용자 인증 완료 (ID: ${userId})`;
+                    console.log("Auth State Changed, User ID:", userId);
+                    
+                    // 3. Start fetching data from Firestore
+                    fetchData();
+                } else {
+                    // This should ideally not happen after successful sign-in
+                    userId = null;
+                    document.getElementById('auth-status').textContent = "인증 실패.";
+                }
+            });
+        }
+
+        window.onload = function() {
+            initFirebase();
         };
         
     </script>
