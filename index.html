@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>로컬 저장소 여행 플래너</title>
+    <title>Notion 임베드 여행 플래너</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -31,12 +31,12 @@
             <div class="max-w-4xl mx-auto flex justify-between items-center">
                 <h1 class="text-xl font-bold flex items-center gap-2">
                     <i data-lucide="map-pin" class="w-6 h-6"></i>
-                    로컬 저장소 여행 플래너
+                    Notion 임베드 여행 플래너
                 </h1>
                 <div class="flex items-center gap-4">
-                    <!-- 사용자 ID 대신 저장소 상태 표시 -->
+                    <!-- 현재 저장소 상태 표시 -->
                     <div class="flex items-center text-xs bg-teal-500 py-1 px-2 rounded-full">
-                        <i data-lucide="database" class='w-3 h-3 mr-1'></i> 저장소: 로컬 브라우저
+                        <i data-lucide="hard-drive" class='w-3 h-3 mr-1'></i> 저장소: 로컬 전용 (비공유)
                     </div>
                     <button id="reset-button" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">
                         <i data-lucide="rotate-ccw" class='w-3 h-3'></i> 초기화
@@ -76,7 +76,7 @@
 
 
     <script type="text/javascript">
-        // 로컬 저장소 키
+        // 로컬 저장소 키 (데이터는 이 브라우저에만 저장됨)
         const LOCAL_STORAGE_KEY = 'travelPlannerData';
 
         // Global State and Constants
@@ -305,7 +305,7 @@
             
             const appContainer = document.getElementById('app-container');
             if (appContainer.querySelector('#main-template') === null) {
-                // Initial render: replace loading screen with main content
+                // Initial render: inject main content
                 const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
                 appContainer.innerHTML = '';
                 appContainer.appendChild(mainTemplate);
@@ -381,7 +381,7 @@
                     <!-- 🗺️ 지도에 표시할 주요 장소 섹션 -->
                     <div class="mt-8">
                         <h3 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">📍 지도에 표시할 주요 장소</h3>
-                        <p class="text-sm text-gray-500 mb-3">* 여기에 장소를 입력하면 지도에 핀처럼 표시됩니다.</p>
+                        <p class="text-sm text-gray-500 mb-3">* 여기에 장소를 입력하면 지도에 핀처럼 표시됩니다. (로컬 저장)</p>
                         <div class="flex gap-2 mb-4">
                             <input id="newKeyLocation" type="text" placeholder="새 장소 이름 입력 (예: 해변, 맛집)" 
                                    class="flex-1 border rounded-lg p-2" 
