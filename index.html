@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>클라우드 여행 플래너</title>
+    <title>클라우드 여행 플래너 - 지도 개선</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Firebase SDKs -->
     <script type="module">
-        // --- 환경 변수 처리 (필수) ---
-        // 이 환경 변수들은 Notion 임베드 시에는 작동하지 않으므로, 더미 데이터로 대체합니다.
-        // 외부 호스팅 시에는 클라우드 동기화를 위해 실제 Firebase Config가 필요합니다.
-        window.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        window.initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --- 환경 변수 및 Firebase 설정 ---
+        // 이 환경 변수들은 Notion 임베드 환경에서는 작동하지 않으므로, 더미 값으로 초기화합니다.
+        window.appId = 'notion-app-id-123';
+        window.initialAuthToken = null;
         window.firebaseConfig = {
             apiKey: "AIzaSy_MockApiKey_For_Testing", 
             authDomain: "mock-project.firebaseapp.com",
@@ -24,36 +23,21 @@
             appId: "1:123456789012:web:abcdef1234567890",
         };
         
-        // 실제 환경에서는 __firebase_config를 사용합니다.
-        try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                const parsedConfig = JSON.parse(__firebase_config);
-                if (parsedConfig && parsedConfig.projectId) {
-                    window.firebaseConfig = parsedConfig;
-                }
-            }
-        } catch (e) {
-            console.error("Firebase config parse error:", e);
-        }
-
         // --- Firebase Imports and Initialization ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Initialize Firebase services globally
         window.app = initializeApp(window.firebaseConfig);
         window.db = getFirestore(window.app);
         window.auth = getAuth(window.app);
-
-        // Export setup function
+        
+        // --- Core Authentication Function ---
         window.initializeAppAndAuth = async function() {
             try {
-                if (window.initialAuthToken) {
-                    await signInWithCustomToken(window.auth, window.initialAuthToken);
-                } else {
-                    await signInAnonymously(window.auth);
-                }
+                // GitHub Pages 환경에서는 __initial_auth_token이 없으므로 익명 로그인 시도
+                await signInAnonymously(window.auth);
             } catch (error) {
                 console.error("Firebase Auth Failed:", error); 
             }
@@ -79,12 +63,12 @@
                 <i data-lucide="globe" class='text-teal-400 w-4 h-4'></i>
                 실시간 동기화를 위해 Firebase 인증 및 데이터 로딩을 기다리고 있습니다.
             </p>
-            <p class="text-xs mt-4 text-gray-400">🚨 진행이 멈췄다면, 브라우저의 개발자 도구 (Console 탭)를 확인해주세요.</p>
+            <p class="text-xs mt-4 text-gray-400">🚨 이 앱은 Notion 임베드를 위해 GitHub Pages에서 호스팅되었습니다.</p>
             <div class="mt-4 animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
         </div>
     </div>
     
-    <!-- Main HTML Template (hidden initially) -->
+    <!-- Main HTML Template -->
     <template id="main-template">
         <header class="bg-teal-600 text-white p-4 shadow-md sticky top-0 z-10">
             <div class="max-w-4xl mx-auto flex justify-between items-center">
@@ -94,10 +78,10 @@
                 </h1>
                 <div class="flex items-center gap-4">
                     <div id="user-display" class="flex items-center text-xs bg-teal-500 py-1 px-2 rounded-full">
-                        <i data-lucide="user" class="w-3 h-3 mr-1"></i> ID: Loading...
+                        <i data-lucide="user" class='w-3 h-3 mr-1'></i> ID: Loading...
                     </div>
                     <button id="reset-button" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">
-                        <i data-lucide="rotate-ccw" class="w-3 h-3"></i> 초기화
+                        <i data-lucide="rotate-ccw" class='w-3 h-3'></i> 초기화
                     </button>
                 </div>
             </div>
@@ -134,7 +118,6 @@
 
 
     <script type="module">
-        // Firebase modules are imported via the type="module" script tag above
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -157,7 +140,12 @@
                 { id: 4, day: 1, morning: '오전 일정', afternoon: '오후 일정', evening: '저녁 일정' },
             ],
             souvenirs: [],
-            expenses: []
+            expenses: [],
+            // 지도 핀 기능을 위한 새로운 필드 추가
+            keyLocations: [
+                { id: 101, name: '성산일출봉' },
+                { id: 102, name: '협재 해수욕장' },
+            ],
         };
         
         const TABS = [
@@ -180,15 +168,16 @@
                 return;
             }
             
-            // Notion 임베드 환경에서는 앱 ID를 고정 값으로 사용하거나,
-            // 별도의 인증 시스템을 구축해야 합니다. 여기서는 현재 환경 변수를 사용합니다.
-            const planDocRef = doc(window.db, 'artifacts', window.appId, 'users', userId, 'travelPlans', 'myPlan');
+            const planDocRef = doc(window.db, 'artifacts', 'notion-shared-app', 'public', 'data', 'travelPlans', 'notionPlan');
             try {
                 await setDoc(planDocRef, newData); 
                 data = newData; 
                 render(); 
             } catch (e) {
-                console.error("ERROR: Error updating document:", e); 
+                console.error("ERROR: Error updating document (Check Security Rules):", e); 
+                // Fallback
+                data = newData;
+                render();
             }
         }
         
@@ -198,12 +187,16 @@
         function startFirestoreListener() {
             if (!window.db || !userId) return;
 
-            const planDocRef = doc(window.db, 'artifacts', window.appId, 'users', userId, 'travelPlans', 'myPlan');
+            const planDocRef = doc(window.db, 'artifacts', 'notion-shared-app', 'public', 'data', 'travelPlans', 'notionPlan');
             
             onSnapshot(planDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     console.log("Firestore: Data loaded/synced.");
                     data = docSnap.data();
+                    // keyLocations이 없으면 초기화 (이전 버전 호환성)
+                    if (!data.keyLocations) {
+                        data.keyLocations = initialData.keyLocations;
+                    }
                 } else {
                     console.log("Firestore: No document found. Initializing new plan.");
                     data = initialData;
@@ -211,7 +204,7 @@
                 }
                 render();
             }, (error) => {
-                console.error("ERROR: Firestore Snapshot Error:", error); 
+                console.error("ERROR: Firestore Snapshot Error (Check Security Rules):", error); 
                 if (data === null) {
                     data = initialData; // Fallback to initial data
                     render();
@@ -221,7 +214,6 @@
         
         // --- Input Handling (Hangul Fix) ---
         
-        // Listeners for Hangul composition
         document.addEventListener('compositionstart', (e) => {
             if (e.target.dataset.hangul) {
                 isComposing = true;
@@ -235,40 +227,31 @@
             }
         }, true);
 
-        /**
-         * Handles generic input events, respecting Hangul composition state.
-         * @param {Event} e 
-         */
         function handleGlobalInput(e) {
             const target = e.target;
             const field = target.dataset.field;
 
-            // Only proceed for inputs marked with data-field (our controlled inputs)
             if (!field) return;
-
-            // Mark for Hangul support
-            target.dataset.hangul = 'true';
-
-            // If not composing (English, number, or composition just ended) -> update Firestore
+            // 모든 텍스트 입력에 hangul 플래그 추가 (compositionstart/end 이벤트 리스너가 필요)
+            if (target.type === 'text' || target.type === 'number') {
+                 target.dataset.hangul = 'true';
+            }
+            
             if (!isComposing) {
                 handleInputChange(target);
             }
         }
 
-        /**
-         * Updates the global state based on an input element's dataset.
-         * @param {HTMLElement} inputElement 
-         */
         function handleInputChange(inputElement) {
             const field = inputElement.dataset.field;
             const value = inputElement.value;
             const contextId = inputElement.dataset.contextId;
-            const contextList = inputElement.dataset.contextList; // e.g., 'schedule'
+            const contextList = inputElement.dataset.contextList; 
 
             if (!field) return;
 
             if (contextList && contextId) {
-                // Handle complex list updates (schedule)
+                // Handle complex list updates (schedule, keyLocations)
                 let updatedList = data[contextList].map(item => 
                     String(item.id) === contextId ? { ...item, [field]: value } : item
                 );
@@ -281,44 +264,33 @@
             }
         }
 
-
-        // --- UI Rendering Functions (Truncated for brevity, focusing on the core logic) ---
-        
+        // --- Utility Functions ---
         function setActiveTab(tabId) { activeTab = tabId; render(); }
-        function render() {
-            if (!data) return;
-            // ... (Full rendering logic similar to the previous HTML example) ...
-
-            // --- Simplified Render Structure (Essential for functionality) ---
-            const appContainer = document.getElementById('app-container');
-            const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
-            
-            // Clear container and append the template content
-            appContainer.innerHTML = '';
-            appContainer.appendChild(mainTemplate);
-            
-            // Re-bind static elements
-            document.getElementById('user-display').innerHTML = 
-                `<i data-lucide="user" class="w-3 h-3 mr-1"></i> ID: ${userId ? userId.substring(0, 8) + '...' : 'Guest'}`;
-            document.getElementById('reset-button').onclick = () => showModal(true);
-            document.getElementById('cancel-reset').onclick = () => showModal(false);
-            document.getElementById('confirm-reset').onclick = confirmReset;
-
-            renderTabs();
-            renderContent();
-            lucide.createIcons();
-
-            // Reattach the global input listener after rendering new inputs
-            document.querySelectorAll('input').forEach(input => {
-                input.removeEventListener('input', handleGlobalInput);
-                input.addEventListener('input', handleGlobalInput);
-            });
-            document.querySelectorAll('select').forEach(select => {
-                select.removeEventListener('change', handleGlobalInput);
-                select.addEventListener('change', handleGlobalInput);
-            });
+        function addItem(listName, newItem) {
+            const id = Date.now() + Math.random();
+            const updatedList = [...data[listName], { ...newItem, id }];
+            updateFirestore({ ...data, [listName]: updatedList });
         }
-        
+        function deleteItem(listName, id) {
+            const updatedList = data[listName].filter(item => item.id !== id);
+            updateFirestore({ ...data, [listName]: updatedList });
+        }
+        function showModal(isVisible) { 
+            const modal = document.getElementById('modal-backdrop');
+            if (modal) { modal.classList.toggle('hidden', !isVisible); modal.classList.toggle('flex', isVisible); }
+        }
+        function confirmReset() { 
+            // keyLocations 포함하여 초기화
+            updateFirestore(initialData); 
+            showModal(false); 
+        } 
+        function calculateRemainingBudget(budget, expenses) {
+            const total = expenses.reduce((sum, item) => sum + Number(item.cost || 0), 0);
+            return Number(budget) - total;
+        }
+
+        // --- Render Functions (UI Generation) ---
+
         function renderTabs() { 
             const tabNav = document.getElementById('tab-navigation');
             if (!tabNav) return;
@@ -341,6 +313,7 @@
             const contentArea = document.getElementById('content-area');
             if (!contentArea) return;
             contentArea.innerHTML = '';
+            // 매번 새로운 콘텐츠를 로드할 때 페이드인 애니메이션 적용
             contentArea.classList.add('animate-fade-in'); 
 
             switch (activeTab) {
@@ -350,6 +323,7 @@
                 case 'souvenir': contentArea.innerHTML = renderSouvenirHtml(); break;
                 case 'expense': contentArea.innerHTML = renderExpenseHtml(); break;
             }
+            
             // Re-bind utility functions to window for onclick/onchange in HTML strings
             window.addDay = () => { const nextDay = data.schedule.length + 1; window.addItem('schedule', { day: nextDay, morning: '', afternoon: '', evening: '' }); };
             window.deleteItem = deleteItem;
@@ -358,7 +332,10 @@
                 const updatedList = data[listName].map(item => item.id === id ? { ...item, checked: !item.checked } : item);
                 updateFirestore({ ...data, [listName]: updatedList });
             };
-            window.addPackingItem = () => { const input = document.getElementById('newPackingItem'); if (input.value.trim()) { window.addItem('packingList', { text: input.value, checked: false }); input.value = ''; } };
+            window.addPackingItem = () => { 
+                const input = document.getElementById('newPackingItem'); 
+                if (input.value.trim()) { window.addItem('packingList', { text: input.value, checked: false }); input.value = ''; } 
+            };
             window.toggleSouvenir = (id) => {
                 const updatedList = data.souvenirs.map(item => item.id === id ? { ...item, bought: !item.bought } : item);
                 updateFirestore({ ...data, souvenirs: updatedList });
@@ -371,17 +348,140 @@
                 const cat = document.getElementById('expenseCat'); const item = document.getElementById('expenseItem'); const cost = document.getElementById('expenseCost');
                 if (item.value.trim() && cost.value) { window.addItem('expenses', { category: cat.value, item: item.value, cost: parseInt(cost.value) }); item.value = ''; cost.value = ''; }
             };
+            window.addKeyLocation = () => {
+                const input = document.getElementById('newKeyLocation');
+                if (input.value.trim()) { window.addItem('keyLocations', { name: input.value }); input.value = ''; }
+            }
+            
+            // Reattach the global input listener after rendering new inputs
+            document.querySelectorAll('input, select').forEach(element => {
+                element.removeEventListener('input', handleGlobalInput);
+                element.removeEventListener('change', handleGlobalInput);
+                element.addEventListener('input', handleGlobalInput);
+                element.addEventListener('change', handleGlobalInput);
+            });
+            lucide.createIcons();
+        }
+
+        // --- Main Render Function ---
+        function render() {
+            if (!data) return;
+            
+            const appContainer = document.getElementById('app-container');
+            if (appContainer.querySelector('#main-template') === null) {
+                // Initial render: replace loading screen with main content
+                const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
+                appContainer.innerHTML = '';
+                appContainer.appendChild(mainTemplate);
+                
+                // Bind static events once
+                document.getElementById('reset-button').onclick = () => showModal(true);
+                document.getElementById('cancel-reset').onclick = () => showModal(false);
+                document.getElementById('confirm-reset').onclick = confirmReset;
+            }
+            
+            // Update User ID display
+            const userDisplay = document.getElementById('user-display');
+            if (userDisplay) {
+                userDisplay.innerHTML = 
+                `<i data-lucide="user" class='w-3 h-3 mr-1'></i> ID: ${userId ? userId.substring(0, 8) + '...' : 'Guest'}`;
+            }
+
+            renderTabs();
+            renderContent();
+            lucide.createIcons();
         }
         
-        // --- Simplified HTML Content Generation (for space, assuming full content from previous response) ---
-        function renderOverviewHtml() { /* ... full HTML string for overview ... */
-            return `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800 border-b pb-2">✈️ 여행 기본 정보</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-600 mb-1">여행지</label><input type="text" value="${data.destination}" data-field="destination" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="예: 파리, 제주도"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">총 예산 (원)</label><input type="number" value="${data.budget}" data-field="budget" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-teal-500 outline-none text-right" placeholder="0"/></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-medium text-gray-600 mb-1">시작일</label><input type="date" value="${data.startDate}" data-field="startDate" class="w-full border rounded-lg p-2"/></div><div><label class="block text-sm font-medium text-gray-600 mb-1">종료일</label><input type="date" value="${data.endDate}" data-field="endDate" class="w-full border rounded-lg p-2"/></div></div><div class="mt-6"><label class="block text-sm font-medium text-gray-600 mb-2">📍 구글 지도 (${data.destination})</label><div class="w-full h-80 bg-gray-200 rounded-lg overflow-hidden border"><iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="https://maps.google.com/maps?q=${encodeURIComponent(data.destination)}&t=&z=13&ie=UTF8&iwloc=&output=embed" title="Google Map"></iframe></div><p class="text-xs text-gray-400 mt-1">* 여행지를 입력하면 지도가 업데이트됩니다.</p></div></div>`;
+        // --- Simplified HTML Content Generation Functions ---
+        
+        function renderOverviewHtml() { 
+            const remainingBudget = calculateRemainingBudget(data.budget, data.expenses);
+            
+            // --- 지도 URL 생성 로직 개선 ---
+            // 1. 주요 여행지와 Key Locations의 이름만 추출
+            const locationNames = [data.destination, ...data.keyLocations.map(l => l.name)];
+            // 2. 비어있지 않은 장소 이름만 필터링하고 '+to+'로 연결하여 Google Maps 검색 쿼리 생성
+            const mapQuery = locationNames.filter(name => name.trim()).join('+to+');
+            const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=11&ie=UTF8&iwloc=&output=embed`;
+            
+            // Key Locations 리스트 HTML
+            const keyLocationsHtml = data.keyLocations.map(loc => `
+                <div class="flex items-center justify-between p-2 bg-white border border-gray-100 rounded-lg shadow-sm">
+                    <input type="text" value="${loc.name}" 
+                           data-field="name" 
+                           data-context-list="keyLocations" 
+                           data-context-id="${loc.id}" 
+                           class="flex-1 border-none focus:ring-0 outline-none text-sm p-1" />
+                    <button onclick="window.deleteItem('keyLocations', ${loc.id})" class="text-gray-300 hover:text-red-500 p-1">
+                        <i data-lucide="x" size="16"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">✈️ 여행 기본 정보</h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">여행지 (전체)</label>
+                            <input type="text" value="${data.destination}" data-field="destination" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-teal-500 outline-none" placeholder="예: 파리, 제주도"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">총 예산 (원)</label>
+                            <input type="number" value="${data.budget}" data-field="budget" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-teal-500 outline-none text-right" placeholder="0"/>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">시작일</label>
+                            <input type="date" value="${data.startDate}" data-field="startDate" class="w-full border rounded-lg p-2"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">종료일</label>
+                            <input type="date" value="${data.endDate}" data-field="endDate" class="w-full border rounded-lg p-2"/>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <div class="p-4 rounded-lg border ${remainingBudget >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-red-100 border-red-200'}">
+                            <p class="text-sm ${remainingBudget >= 0 ? 'text-blue-500' : 'text-red-500'}">남은 예산</p>
+                            <p class="text-xl font-bold ${remainingBudget >= 0 ? 'text-blue-700' : 'text-red-700'}">${remainingBudget.toLocaleString()}원</p>
+                        </div>
+                    </div>
+
+                    <!-- 🗺️ 지도에 표시할 주요 장소 섹션 (새로 추가) -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">📍 지도에 표시할 주요 장소</h3>
+                        <p class="text-sm text-gray-500 mb-3">* 여기에 장소를 입력하면 지도에 핀처럼 표시됩니다.</p>
+                        <div class="flex gap-2 mb-4">
+                            <input id="newKeyLocation" type="text" placeholder="새 장소 이름 입력 (예: 해변, 맛집)" 
+                                   class="flex-1 border rounded-lg p-2" 
+                                   onkeypress="if(event.key === 'Enter') { window.addKeyLocation(); }" />
+                            <button onclick="window.addKeyLocation()" class="bg-teal-600 text-white px-4 rounded-lg hover:bg-teal-700 text-sm">추가</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1 rounded-lg bg-gray-50">
+                            ${keyLocationsHtml}
+                        </div>
+                    </div>
+                    
+                    <!-- 🗺️ 구글 지도 임베드 -->
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium text-gray-600 mb-2">🗺️ 주요 장소 지도 미리보기</label>
+                        <div class="w-full h-80 bg-gray-200 rounded-lg overflow-hidden border">
+                            <iframe width="100%" height="100%" frameborder="0" scrolling="no" marginheight="0" marginwidth="0" src="${mapSrc}" title="Google Map"></iframe>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">* '여행지'와 '주요 장소' 입력값을 기반으로 지도가 업데이트됩니다.</p>
+                    </div>
+                </div>
+            `;
         }
-        function renderScheduleHtml() { /* ... full HTML string for schedule ... */
+        function renderScheduleHtml() { 
             const addDayHtml = `<button onclick="window.addDay()" class="bg-teal-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 hover:bg-teal-700"><i data-lucide="plus" size="16"></i> Day 추가</button>`;
             const scheduleList = data.schedule.map((day, index) => `
                 <div key="${day.id}" class="border border-gray-200 rounded-lg p-4 bg-gray-50 relative">
-                    <div class="flex justify-between mb-3"><h3 class="font-bold text-lg text-teal-700">Day ${day.day}</h3>${index > 0 ? `<button onclick="window.deleteItem('schedule', ${day.id})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" size="18"></i></button>` : ''}</div>
+                    <div class="flex justify-between mb-3"><h3 class="font-bold text-lg text-teal-700">Day ${day.day}</h3>${data.schedule.length > 1 ? `<button onclick="window.deleteItem('schedule', ${day.id})" class="text-red-400 hover:text-red-600"><i data-lucide="trash-2" size="18"></i></button>` : ''}</div>
                     <div class="space-y-3">
                         ${['morning', 'afternoon', 'evening'].map((period) => {
                             const config = { morning: { label: '오전', color: 'yellow' }, afternoon: { label: '오후', color: 'orange' }, evening: { label: '저녁', color: 'indigo' } }[period];
@@ -392,31 +492,22 @@
             `).join('');
             return `<div class="space-y-6"><div class="flex justify-between items-center border-b pb-2"><h2 class="text-2xl font-bold text-gray-800">📅 날짜별 일정 (${data.schedule.length}일)</h2>${addDayHtml}</div><div class="space-y-4">${scheduleList}</div></div>`;
         }
-        function renderPackingHtml() { /* ... full HTML string for packing ... */
+        function renderPackingHtml() { 
             const listHtml = data.packingList.map(item => `<div key="${item.id}" onclick="window.toggleCheck('packingList', ${item.id})" class="flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${item.checked ? 'bg-gray-100 border-gray-200' : 'bg-white border-teal-100 shadow-sm hover:shadow'}"><div class="flex items-center gap-3 overflow-hidden"><div class="w-5 h-5 rounded border flex items-center justify-center ${item.checked ? 'bg-teal-500 border-teal-500' : 'border-gray-300'}">${item.checked ? `<i data-lucide="check-square" size="14" class="text-white"></i>` : ''}</div><span class="truncate ${item.checked ? 'text-gray-400 line-through' : 'text-gray-800'}">${item.text}</span></div><button onclick="event.stopPropagation(); window.deleteItem('packingList', ${item.id});" class="text-gray-300 hover:text-red-500 p-1"><i data-lucide="trash-2" size="16"></i></button></div>`).join('');
             return `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800 border-b pb-2">🎒 준비물 리스트</h2><div class="flex gap-2"><input id="newPackingItem" type="text" placeholder="새 준비물 추가..." class="flex-1 border rounded-lg p-2" onkeypress="if(event.key === 'Enter') { window.addPackingItem(); }" /><button onclick="window.addPackingItem()" class="bg-teal-600 text-white px-4 rounded-lg hover:bg-teal-700">추가</button></div><div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">${listHtml}</div></div>`;
         }
-        function renderSouvenirHtml() { /* ... full HTML string for souvenir ... */
-            const tableRows = data.souvenirs.map(s => `<tr key="${s.id}" class="border-b hover:bg-gray-50"><td class="p-3 text-center"><input type="checkbox" checked="${s.bought}" onchange="window.toggleSouvenir(${s.id})" class="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"/></td><td class="p-3 ${s.bought ? 'line-through text-gray-400' : ''}">${s.item}</td><td class="p-3 ${s.bought ? 'text-gray-400' : 'text-gray-600'}">${s.receiver}</td><td class="p-3 text-center"><button onclick="window.deleteItem('souvenirs', ${s.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" size="16"></i></button></td></tr>`).join('');
+        function renderSouvenirHtml() { 
+            const tableRows = data.souvenirs.map(s => `<tr key="${s.id}" class="border-b hover:bg-gray-50"><td class="p-3 text-center"><input type="checkbox" ${s.bought ? 'checked' : ''} onchange="window.toggleSouvenir(${s.id})" class="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"/></td><td class="p-3 ${s.bought ? 'line-through text-gray-400' : ''}">${s.item}</td><td class="p-3 ${s.bought ? 'text-gray-400' : 'text-gray-600'}">${s.receiver}</td><td class="p-3 text-center"><button onclick="window.deleteItem('souvenirs', ${s.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" size="16"></i></button></td></tr>`).join('');
             return `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800 border-b pb-2">🎁 기념품 목록</h2><div class="flex gap-2 mb-4 p-4 bg-gray-50 rounded-lg"><input id="souvenirItem" type="text" placeholder="무엇을?" class="flex-[2] border rounded p-2 text-sm" /><input id="souvenirReceiver" type="text" placeholder="누구에게?" class="flex-1 border rounded p-2 text-sm" /><button onclick="window.addSouvenirItem()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button></div><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-teal-50 text-teal-800 border-b border-teal-100"><th class="p-3 w-16 text-center">구매</th><th class="p-3">상품명</th><th class="p-3">받는 사람</th><th class="p-3 w-16 text-center">삭제</th></tr></thead><tbody>${tableRows}</tbody></table></div></div>`;
         }
-        function renderExpenseHtml() { /* ... full HTML string for expense ... */
+        function renderExpenseHtml() { 
             const totalExpense = data.expenses.reduce((sum, item) => sum + Number(item.cost || 0), 0);
-            const remainingBudget = Number(data.budget) - totalExpense;
+            const remainingBudget = calculateRemainingBudget(data.budget, data.expenses);
             const expenseRows = data.expenses.map(e => `<tr key="${e.id}" class="border-b hover:bg-gray-50"><td class="p-3 text-gray-500"><span class="bg-gray-200 text-xs px-2 py-1 rounded">${e.category}</span></td><td class="p-3">${e.item}</td><td class="p-3 text-right font-medium">${e.cost.toLocaleString()}원</td><td class="p-3 text-center"><button onclick="window.deleteItem('expenses', ${e.id})" class="text-gray-300 hover:text-red-500"><i data-lucide="trash-2" size="14"></i></button></td></tr>`).join('');
-            return `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800 border-b pb-2">💸 여행 가계부</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><div class="bg-gray-50 p-4 rounded-lg border"><p class="text-sm text-gray-500">총 예산</p><p class="text-xl font-bold text-gray-800">${Number(data.budget).toLocaleString()}원</p></div><div class="bg-red-50 p-4 rounded-lg border border-red-100"><p class="text-sm text-red-500">총 지출</p><p class="text-xl font-bold text-red-700">${totalExpense.toLocaleString()}원</p></div><div class="p-4 rounded-lg border ${remainingBudget >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-red-100 border-red-200'}"><p class="text-sm ${remainingBudget >= 0 ? 'text-blue-500' : 'text-red-500'}">남은 돈</p><p class="text-xl font-bold ${remainingBudget >= 0 ? 'text-blue-700' : 'text-red-700'}">${remainingBudget.toLocaleString()}원</p></div></div><div class="flex gap-2 mb-4 flex-wrap"><select id="expenseCat" class="border rounded p-2 text-sm"><option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option></select><input id="expenseItem" type="text" placeholder="내용 (예: 점심)" class="flex-1 border rounded p-2 text-sm min-w-[120px]" /><input id="expenseCost" type="number" placeholder="금액" class="w-24 border rounded p-2 text-sm text-right" /><button onclick="window.addExpenseItem()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button></div><div class="overflow-x-auto max-h-[400px] overflow-y-auto"><table class="w-full text-left border-collapse text-sm"><thead class="bg-gray-100 sticky top-0"><tr><th class="p-3 w-20">분류</th><th class="p-3">내역</th><th class="p-3 text-right">금액</th><th class="p-3 w-12 text-center">삭제</th></tr></thead><tbody>${expenseRows}</tbody></table></div></div>`;
+            return `<div class="space-y-6"><h2 class="text-2xl font-bold text-gray-800 border-b pb-2">💸 여행 가계부</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><div class="bg-gray-50 p-4 rounded-lg border"><p class="text-sm text-gray-500">총 예산</p><p class="text-xl font-bold text-gray-800">${Number(data.budget).toLocaleString()}원</p></div><div class="bg-red-50 p-4 rounded-lg border border-red-100"><p class="text-sm text-red-500">총 지출</p><p class="text-xl font-bold text-red-700">${totalExpense.toLocaleString()}원</p></div><div class="p-4 rounded-lg border ${remainingBudget >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-red-100 border-red-200'}"><p class="text-sm ${remainingBudget >= 0 ? 'text-blue-500' : 'text-red-500'}">남은 돈</p><p class="text-xl font-bold ${remainingBudget >= 0 ? 'text-blue-700' : 'text-red-700'}`}${remainingBudget.toLocaleString()}원</p></div></div><div class="flex gap-2 mb-4 flex-wrap"><select id="expenseCat" class="border rounded p-2 text-sm"><option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option></select><input id="expenseItem" type="text" placeholder="내용 (예: 점심)" class="flex-1 border rounded p-2 text-sm min-w-[120px]" /><input id="expenseCost" type="number" placeholder="금액" class="w-24 border rounded p-2 text-sm text-right" /><button onclick="window.addExpenseItem()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button></div><div class="overflow-x-auto max-h-[400px] overflow-y-auto"><table class="w-full text-left border-collapse text-sm"><thead class="bg-gray-100 sticky top-0"><tr><th class="p-3 w-20">분류</th><th class="p-3">내역</th><th class="p-3 text-right">금액</th><th class="p-3 w-12 text-center">삭제</th></tr></thead><tbody>${expenseRows}</tbody></table></div></div>`;
         }
 
-
-        // --- Utility Functions ---
-
-        function addItem(listName, newItem) { /* ... */ } // Same as previous
-        function deleteItem(listName, id) { /* ... */ } // Same as previous
-        function showModal(isVisible) { /* ... */ } // Same as previous
-        function confirmReset() { updateFirestore(initialData); showModal(false); } // Same as previous
-
         // --- Initialization ---
-
         window.onload = async function() {
             await window.initializeAppAndAuth();
             onAuthStateChanged(window.auth, (user) => {
@@ -424,8 +515,8 @@
                     userId = user.uid;
                     startFirestoreListener(); 
                 } else {
-                    userId = 'GUEST_' + crypto.randomUUID(); // 비인증 시 고유 ID 생성 (firestore security rule에 따라 비인증 사용자는 데이터를 읽고 쓸 수 없거나 제한됩니다.)
-                    console.error("Auth Failed. Falling back to Guest mode.");
+                    userId = 'GUEST_USER'; // 익명 로그인 실패 시 대체 ID
+                    console.error("Auth Failed. Using Guest mode.");
                     data = initialData;
                     render();
                 }
