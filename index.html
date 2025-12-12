@@ -3,46 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>클라우드 여행 플래너 - 지도 개선</title>
+    <title>로컬 저장소 여행 플래너</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Firebase SDKs -->
-    <script type="module">
-        // --- 환경 변수 및 Firebase 설정 ---
-        // 이 환경 변수들은 Notion 임베드 환경에서는 작동하지 않으므로, 더미 값으로 초기화합니다.
-        window.appId = 'notion-app-id-123';
-        window.initialAuthToken = null;
-        window.firebaseConfig = {
-            apiKey: "AIzaSy_MockApiKey_For_Testing", 
-            authDomain: "mock-project.firebaseapp.com",
-            projectId: "mock-travel-planner-12345",
-            storageBucket: "mock-project.appspot.com",
-            messagingSenderId: "123456789012",
-            appId: "1:123456789012:web:abcdef1234567890",
-        };
-        
-        // --- Firebase Imports and Initialization ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Initialize Firebase services globally
-        window.app = initializeApp(window.firebaseConfig);
-        window.db = getFirestore(window.app);
-        window.auth = getAuth(window.app);
-        
-        // --- Core Authentication Function ---
-        window.initializeAppAndAuth = async function() {
-            try {
-                // GitHub Pages 환경에서는 __initial_auth_token이 없으므로 익명 로그인 시도
-                await signInAnonymously(window.auth);
-            } catch (error) {
-                console.error("Firebase Auth Failed:", error); 
-            }
-        }
-    </script>
+    
     <style>
         .animate-fade-in {
             animation: fadeIn 0.5s ease-out;
@@ -56,16 +22,7 @@
 <body class="bg-gray-50 text-gray-800" style="font-family: Inter, 'Apple SD Gothic Neo', 'Malgun Gothic', 'NanumGothic', Dotum, sans-serif;">
 
     <div id="app-container">
-        <!-- Initial Loading State -->
-        <div class="flex flex-col justify-center items-center h-screen bg-gray-50 p-4">
-            <p class="text-xl text-teal-600 font-semibold mb-2">여행 데이터를 클라우드에서 불러오는 중...</p>
-            <p class="text-sm text-gray-500 flex items-center gap-1">
-                <i data-lucide="globe" class='text-teal-400 w-4 h-4'></i>
-                실시간 동기화를 위해 Firebase 인증 및 데이터 로딩을 기다리고 있습니다.
-            </p>
-            <p class="text-xs mt-4 text-gray-400">🚨 이 앱은 Notion 임베드를 위해 GitHub Pages에서 호스팅되었습니다.</p>
-            <div class="mt-4 animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
-        </div>
+        <!-- 초기 로딩 스크린 없이 바로 렌더링 됩니다. -->
     </div>
     
     <!-- Main HTML Template -->
@@ -74,11 +31,12 @@
             <div class="max-w-4xl mx-auto flex justify-between items-center">
                 <h1 class="text-xl font-bold flex items-center gap-2">
                     <i data-lucide="map-pin" class="w-6 h-6"></i>
-                    나만의 여행 플래너 (클라우드 동기화)
+                    로컬 저장소 여행 플래너
                 </h1>
                 <div class="flex items-center gap-4">
-                    <div id="user-display" class="flex items-center text-xs bg-teal-500 py-1 px-2 rounded-full">
-                        <i data-lucide="user" class='w-3 h-3 mr-1'></i> ID: Loading...
+                    <!-- 사용자 ID 대신 저장소 상태 표시 -->
+                    <div class="flex items-center text-xs bg-teal-500 py-1 px-2 rounded-full">
+                        <i data-lucide="database" class='w-3 h-3 mr-1'></i> 저장소: 로컬 브라우저
                     </div>
                     <button id="reset-button" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">
                         <i data-lucide="rotate-ccw" class='w-3 h-3'></i> 초기화
@@ -103,7 +61,7 @@
         <div id="modal-backdrop" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 items-center justify-center z-50">
             <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
                 <h3 class="text-xl font-bold text-gray-800 mb-4">⚠️ 데이터 초기화 확인</h3>
-                <p class="text-gray-600 mb-6">현재 저장된 모든 여행 계획 데이터가 삭제되고 초기 상태로 돌아갑니다. 계속하시겠습니까?</p>
+                <p class="text-gray-600 mb-6">현재 브라우저에 저장된 모든 여행 계획 데이터가 삭제되고 초기 상태로 돌아갑니다. 계속하시겠습니까?</p>
                 <div class="flex justify-end gap-3">
                     <button id="cancel-reset" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition">
                         취소
@@ -117,13 +75,12 @@
     </template>
 
 
-    <script type="module">
-        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <script type="text/javascript">
+        // 로컬 저장소 키
+        const LOCAL_STORAGE_KEY = 'travelPlannerData';
 
         // Global State and Constants
         let data = null;
-        let userId = null;
         let activeTab = 'overview';
         let isComposing = false; // Flag for Hangul composition
 
@@ -141,7 +98,6 @@
             ],
             souvenirs: [],
             expenses: [],
-            // 지도 핀 기능을 위한 새로운 필드 추가
             keyLocations: [
                 { id: 101, name: '성산일출봉' },
                 { id: 102, name: '협재 해수욕장' },
@@ -156,60 +112,43 @@
             { id: 'expense', label: '가계부', icon: 'dollar-sign' },
         ];
 
-        // --- Core Data Synchronization ---
+        // --- Local Storage Data Synchronization ---
 
         /**
-         * Saves the current state of data to Firestore.
+         * Loads data from browser's local storage or returns initial data.
+         */
+        function loadLocalData() {
+            const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedData) {
+                try {
+                    const parsedData = JSON.parse(savedData);
+                    // keyLocations 호환성 유지
+                    if (!parsedData.keyLocations) {
+                        parsedData.keyLocations = initialData.keyLocations;
+                    }
+                    return parsedData;
+                } catch (e) {
+                    console.error("Error parsing local storage data. Using initial data.", e);
+                    return initialData;
+                }
+            }
+            return initialData;
+        }
+
+        /**
+         * Saves the current state of data to local storage and re-renders.
          * @param {object} newData - The data object to save.
          */
-        async function updateFirestore(newData) {
-            if (!window.db || !userId) {
-                console.warn("Firestore or User ID not ready. Skipping save.");
-                return;
-            }
-            
-            const planDocRef = doc(window.db, 'artifacts', 'notion-shared-app', 'public', 'data', 'travelPlans', 'notionPlan');
+        function updateLocal(newData) {
             try {
-                await setDoc(planDocRef, newData); 
-                data = newData; 
-                render(); 
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newData));
+                data = newData;
+                render();
             } catch (e) {
-                console.error("ERROR: Error updating document (Check Security Rules):", e); 
-                // Fallback
+                console.error("ERROR: Error saving data to local storage:", e);
                 data = newData;
                 render();
             }
-        }
-        
-        /**
-         * Attaches the real-time listener to Firestore.
-         */
-        function startFirestoreListener() {
-            if (!window.db || !userId) return;
-
-            const planDocRef = doc(window.db, 'artifacts', 'notion-shared-app', 'public', 'data', 'travelPlans', 'notionPlan');
-            
-            onSnapshot(planDocRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    console.log("Firestore: Data loaded/synced.");
-                    data = docSnap.data();
-                    // keyLocations이 없으면 초기화 (이전 버전 호환성)
-                    if (!data.keyLocations) {
-                        data.keyLocations = initialData.keyLocations;
-                    }
-                } else {
-                    console.log("Firestore: No document found. Initializing new plan.");
-                    data = initialData;
-                    updateFirestore(initialData).catch(e => console.error("ERROR setting initial doc:", e));
-                }
-                render();
-            }, (error) => {
-                console.error("ERROR: Firestore Snapshot Error (Check Security Rules):", error); 
-                if (data === null) {
-                    data = initialData; // Fallback to initial data
-                    render();
-                }
-            });
         }
         
         // --- Input Handling (Hangul Fix) ---
@@ -232,7 +171,6 @@
             const field = target.dataset.field;
 
             if (!field) return;
-            // 모든 텍스트 입력에 hangul 플래그 추가 (compositionstart/end 이벤트 리스너가 필요)
             if (target.type === 'text' || target.type === 'number') {
                  target.dataset.hangul = 'true';
             }
@@ -255,12 +193,12 @@
                 let updatedList = data[contextList].map(item => 
                     String(item.id) === contextId ? { ...item, [field]: value } : item
                 );
-                updateFirestore({ ...data, [contextList]: updatedList });
+                updateLocal({ ...data, [contextList]: updatedList });
 
             } else {
                 // Handle simple field updates (destination, budget, etc.)
                 const newValue = field === 'budget' ? parseInt(value) || 0 : value;
-                updateFirestore({ ...data, [field]: newValue });
+                updateLocal({ ...data, [field]: newValue });
             }
         }
 
@@ -269,19 +207,18 @@
         function addItem(listName, newItem) {
             const id = Date.now() + Math.random();
             const updatedList = [...data[listName], { ...newItem, id }];
-            updateFirestore({ ...data, [listName]: updatedList });
+            updateLocal({ ...data, [listName]: updatedList });
         }
         function deleteItem(listName, id) {
             const updatedList = data[listName].filter(item => item.id !== id);
-            updateFirestore({ ...data, [listName]: updatedList });
+            updateLocal({ ...data, [listName]: updatedList });
         }
         function showModal(isVisible) { 
             const modal = document.getElementById('modal-backdrop');
             if (modal) { modal.classList.toggle('hidden', !isVisible); modal.classList.toggle('flex', isVisible); }
         }
         function confirmReset() { 
-            // keyLocations 포함하여 초기화
-            updateFirestore(initialData); 
+            updateLocal(initialData); 
             showModal(false); 
         } 
         function calculateRemainingBudget(budget, expenses) {
@@ -313,7 +250,6 @@
             const contentArea = document.getElementById('content-area');
             if (!contentArea) return;
             contentArea.innerHTML = '';
-            // 매번 새로운 콘텐츠를 로드할 때 페이드인 애니메이션 적용
             contentArea.classList.add('animate-fade-in'); 
 
             switch (activeTab) {
@@ -330,7 +266,7 @@
             window.addItem = addItem;
             window.toggleCheck = (listName, id) => {
                 const updatedList = data[listName].map(item => item.id === id ? { ...item, checked: !item.checked } : item);
-                updateFirestore({ ...data, [listName]: updatedList });
+                updateLocal({ ...data, [listName]: updatedList });
             };
             window.addPackingItem = () => { 
                 const input = document.getElementById('newPackingItem'); 
@@ -338,7 +274,7 @@
             };
             window.toggleSouvenir = (id) => {
                 const updatedList = data.souvenirs.map(item => item.id === id ? { ...item, bought: !item.bought } : item);
-                updateFirestore({ ...data, souvenirs: updatedList });
+                updateLocal({ ...data, souvenirs: updatedList });
             };
             window.addSouvenirItem = () => {
                 const item = document.getElementById('souvenirItem'); const receiver = document.getElementById('souvenirReceiver');
@@ -380,13 +316,6 @@
                 document.getElementById('confirm-reset').onclick = confirmReset;
             }
             
-            // Update User ID display
-            const userDisplay = document.getElementById('user-display');
-            if (userDisplay) {
-                userDisplay.innerHTML = 
-                `<i data-lucide="user" class='w-3 h-3 mr-1'></i> ID: ${userId ? userId.substring(0, 8) + '...' : 'Guest'}`;
-            }
-
             renderTabs();
             renderContent();
             lucide.createIcons();
@@ -397,10 +326,8 @@
         function renderOverviewHtml() { 
             const remainingBudget = calculateRemainingBudget(data.budget, data.expenses);
             
-            // --- 지도 URL 생성 로직 개선 ---
-            // 1. 주요 여행지와 Key Locations의 이름만 추출
+            // --- 지도 URL 생성 로직 (개선된 핀 기능) ---
             const locationNames = [data.destination, ...data.keyLocations.map(l => l.name)];
-            // 2. 비어있지 않은 장소 이름만 필터링하고 '+to+'로 연결하여 Google Maps 검색 쿼리 생성
             const mapQuery = locationNames.filter(name => name.trim()).join('+to+');
             const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&t=&z=11&ie=UTF8&iwloc=&output=embed`;
             
@@ -451,7 +378,7 @@
                         </div>
                     </div>
 
-                    <!-- 🗺️ 지도에 표시할 주요 장소 섹션 (새로 추가) -->
+                    <!-- 🗺️ 지도에 표시할 주요 장소 섹션 -->
                     <div class="mt-8">
                         <h3 class="text-xl font-bold text-gray-800 border-b pb-2 mb-4">📍 지도에 표시할 주요 장소</h3>
                         <p class="text-sm text-gray-500 mb-3">* 여기에 장소를 입력하면 지도에 핀처럼 표시됩니다.</p>
@@ -508,19 +435,23 @@
         }
 
         // --- Initialization ---
-        window.onload = async function() {
-            await window.initializeAppAndAuth();
-            onAuthStateChanged(window.auth, (user) => {
-                if (user) {
-                    userId = user.uid;
-                    startFirestoreListener(); 
-                } else {
-                    userId = 'GUEST_USER'; // 익명 로그인 실패 시 대체 ID
-                    console.error("Auth Failed. Using Guest mode.");
-                    data = initialData;
-                    render();
-                }
-            });
+        window.onload = function() {
+            // 1. 데이터 로드 (로컬 저장소)
+            data = loadLocalData();
+
+            // 2. 메인 UI 렌더링
+            const appContainer = document.getElementById('app-container');
+            const mainTemplate = document.getElementById('main-template').content.cloneNode(true);
+            appContainer.innerHTML = '';
+            appContainer.appendChild(mainTemplate);
+            
+            // 3. 정적 이벤트 바인딩
+            document.getElementById('reset-button').onclick = () => showModal(true);
+            document.getElementById('cancel-reset').onclick = () => showModal(false);
+            document.getElementById('confirm-reset').onclick = confirmReset;
+            
+            // 4. 초기 렌더링 시작
+            render();
         };
         
     </script>
