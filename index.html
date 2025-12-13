@@ -15,8 +15,9 @@
     </style>
     
     <!-- React 및 Babel 로드 (JSX를 브라우저에서 실행하기 위함) -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- [로딩 개선] 개발(development) 버전에서 프로덕션(production.min) 버전으로 교체 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <!-- Firebase SDK 로드 -->
@@ -29,9 +30,6 @@
         window.firebaseApp = initializeApp(JSON.parse(window.__firebase_config));
         window.db = getFirestore(window.firebaseApp);
         window.auth = getAuth(window.firebaseApp);
-
-        // React 컴포넌트가 이 전역 변수들을 사용할 수 있도록 초기 인증 로직은 그대로 유지
-        // React 코드 블록 내에서 이 변수들을 사용합니다.
     </script>
 </head>
 <body>
@@ -115,8 +113,11 @@
           const [isAuthReady, setIsAuthReady] = useState(false);
           const [showModal, setShowModal] = useState(false);
           
+          // [NEW STATE] 한글 입력 조합 상태 관리 (Jamo 분리 현상 방지)
+          const [isComposing, setIsComposing] = useState(false); 
+
           // Schedule View State
-          const [selectedDayIndex, setSelectedDayIndex] = useState(0); // For horizontal tabs
+          const [selectedDayIndex, setSelectedDayIndex] = useState(0); 
 
           // Maps State
           const mapRef = useRef(null);
@@ -128,6 +129,7 @@
 
           // Inputs State
           const [inputs, setInputs] = useState({
+            destination: '제주도', // Moved to inputs for composition handling
             packingItem: '',
             souvenirItem: '',
             souvenirReceiver: '',
@@ -150,7 +152,6 @@
             startDate: '',
             endDate: '',
             packingList: [],
-            // schedule structure change: array of Day objects
             schedule: [
                 { id: Date.now(), day: 1, date: '', events: [] } 
             ],
@@ -158,16 +159,45 @@
             expenses: [] 
           };
 
+          // --- Input Handling Logic ---
+          
+          // [UPDATED] 입력 상태만 업데이트하는 유틸리티 함수
+          const setInputValue = (key, value) => {
+              setInputs(prev => ({ ...prev, [key]: value }));
+          };
+
+          // [NEW] 한글 조합 중일 때만 onChange를 무시하고, 조합 완료 시 최종 값을 업데이트하는 핸들러
+          const handleCompositionChange = (key, e) => {
+            if (!isComposing) {
+                setInputValue(key, e.target.value);
+            } else {
+                // 조합 중일 때도 input 내부 값은 업데이트되어야 IME가 작동함
+                setInputs(prev => ({ ...prev, [key]: e.target.value }));
+            }
+          };
+
+          const handleCompositionEnd = (key, e) => {
+              setIsComposing(false);
+              // 조합이 끝난 후 최종 값을 state에 반영
+              setInputValue(key, e.target.value); 
+          };
+          
           // --- Firebase Logic ---
+          
+          // [UPDATED] 이제 destination도 inputs에서 관리되므로, Firestore 업데이트 전에 합쳐줍니다.
           const updateFirestore = useCallback(async (newData) => {
             if (!db || !userId) return;
             const planDocRef = doc(db, 'artifacts', appId, 'users', userId, 'travelPlans', 'myPlanV3');
             try {
-              await setDoc(planDocRef, newData); 
+              // inputs.destination 값을 newData에 병합
+              await setDoc(planDocRef, { 
+                  ...newData, 
+                  destination: newData.destination || inputs.destination // inputs의 최신 destination 사용
+              }); 
             } catch (e) {
               console.error("Error updating document:", e);
             }
-          }, [userId]);
+          }, [userId, inputs.destination]); // inputs.destination을 의존성 배열에 추가
 
           useEffect(() => {
             if (!auth) return;
@@ -199,9 +229,13 @@
             const planDocRef = doc(db, 'artifacts', appId, 'users', userId, 'travelPlans', 'myPlanV3');
             const unsubscribeSnapshot = onSnapshot(planDocRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    setData(docSnap.data());
+                    const fetchedData = docSnap.data();
+                    setData(fetchedData);
+                    // Firestore에서 가져온 destination을 input state에 반영
+                    setInputs(prev => ({ ...prev, destination: fetchedData.destination || '제주도' }));
                 } else {
                     setData(initialData);
+                    setInputs(prev => ({ ...prev, destination: initialData.destination }));
                     updateFirestore(initialData);
                 }
             });
@@ -298,21 +332,17 @@
 
           // --- Actions ---
 
-          const handleInput = (key, value) => {
-              setInputs(prev => ({ ...prev, [key]: value }));
-          };
-
           // Schedule Actions
           const addDay = () => {
               const newDayNum = data.schedule.length + 1;
               const newSchedule = [...data.schedule, { id: Date.now(), day: newDayNum, date: '', events: [] }];
               updateFirestore({ ...data, schedule: newSchedule });
-              setSelectedDayIndex(newSchedule.length - 1); // Switch to new day
+              setSelectedDayIndex(newSchedule.length - 1); 
           };
 
           const deleteDay = (e, index) => {
               e.stopPropagation();
-              if (data.schedule.length <= 1) return; // Keep at least one day
+              if (data.schedule.length <= 1) return; 
               const newSchedule = data.schedule.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 }));
               updateFirestore({ ...data, schedule: newSchedule });
               setSelectedDayIndex(Math.max(0, index - 1));
@@ -337,11 +367,9 @@
               };
 
               const newSchedule = [...data.schedule];
-              // Initialize events array if missing (compatibility)
               if (!newSchedule[selectedDayIndex].events) newSchedule[selectedDayIndex].events = [];
               
               newSchedule[selectedDayIndex].events.push(newEvent);
-              // Sort by time
               newSchedule[selectedDayIndex].events.sort((a, b) => a.time.localeCompare(b.time));
 
               updateFirestore({ ...data, schedule: newSchedule });
@@ -428,7 +456,6 @@
                       className={`flex-1 min-w-[50px] py-1 px-2 rounded-md flex flex-col items-center justify-center text-xs gap-0.5 transition-all
                         ${activeTab === tab.id ? 'bg-teal-100 text-teal-700 font-bold shadow-inner' : 'text-gray-500 hover:bg-gray-100'}`}
                     >
-                      {/* 아이콘 크기 축소 */}
                       {React.createElement(tab.icon, { size: 16 })} {tab.label}
                     </button>
                   ))}
@@ -442,7 +469,14 @@
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label className="block text-sm font-medium text-gray-600 mb-1">여행지</label>
-                            <input type="text" value={data.destination} onChange={(e) => updateFirestore({...data, destination: e.target.value})} className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-teal-500"/>
+                            {/* [한글 입력 수정 적용] */}
+                            <input 
+                                type="text" 
+                                value={inputs.destination} 
+                                onCompositionStart={() => setIsComposing(true)}
+                                onCompositionEnd={(e) => { handleCompositionEnd('destination', e); updateFirestore({...data, destination: e.target.value}); }}
+                                onChange={(e) => { handleCompositionChange('destination', e); if (!isComposing) updateFirestore({...data, destination: e.target.value}); }}
+                                className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-teal-500"/>
                          </div>
                          {/* Total Expense Display (Linked to Expense Tab) */}
                          <div className="bg-red-50 border border-red-100 rounded-lg p-3 flex flex-col justify-center">
@@ -518,14 +552,17 @@
                             <input 
                                 type="time" 
                                 value={inputs.eventTime} 
-                                onChange={(e) => handleInput('eventTime', e.target.value)}
+                                onChange={(e) => setInputValue('eventTime', e.target.value)}
                                 className="border rounded p-2 text-sm w-full"
                             />
+                            {/* [한글 입력 수정 적용] */}
                             <input 
                                 type="text" 
                                 placeholder="일정 제목 (예: 점심 식사)" 
                                 value={inputs.eventTitle} 
-                                onChange={(e) => handleInput('eventTitle', e.target.value)}
+                                onCompositionStart={() => setIsComposing(true)}
+                                onCompositionEnd={(e) => handleCompositionEnd('eventTitle', e)}
+                                onChange={(e) => handleCompositionChange('eventTitle', e)}
                                 className="border rounded p-2 text-sm w-full"
                             />
                             <div className="relative w-full">
@@ -580,7 +617,17 @@
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-gray-800 border-b pb-2">🎒 준비물 리스트</h2>
                         <div className="flex gap-2">
-                            <input type="text" value={inputs.packingItem} onChange={(e) => handleInput('packingItem', e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addPacking()} placeholder="준비물 입력..." className="flex-1 border rounded-lg p-2"/>
+                            {/* [한글 입력 수정 적용] */}
+                            <input 
+                                type="text" 
+                                value={inputs.packingItem} 
+                                onCompositionStart={() => setIsComposing(true)}
+                                onCompositionEnd={(e) => handleCompositionEnd('packingItem', e)}
+                                onChange={(e) => handleCompositionChange('packingItem', e)}
+                                onKeyPress={(e) => e.key === 'Enter' && addPacking()} 
+                                placeholder="준비물 입력..." 
+                                className="flex-1 border rounded-lg p-2"
+                            />
                             <button onClick={addPacking} className="bg-teal-600 text-white px-4 rounded-lg hover:bg-teal-700">추가</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
@@ -602,8 +649,27 @@
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-gray-800 border-b pb-2">🎁 기념품 목록</h2>
                         <div className="flex gap-2 mb-4 p-4 bg-gray-50 rounded-lg">
-                            <input type="text" value={inputs.souvenirItem} onChange={(e) => handleInput('souvenirItem', e.target.value)} placeholder="상품명" className="flex-[2] border rounded p-2 text-sm"/>
-                            <input type="text" value={inputs.souvenirReceiver} onChange={(e) => handleInput('souvenirReceiver', e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addSouvenir()} placeholder="받는 사람" className="flex-1 border rounded p-2 text-sm"/>
+                            {/* [한글 입력 수정 적용] */}
+                            <input 
+                                type="text" 
+                                value={inputs.souvenirItem} 
+                                onCompositionStart={() => setIsComposing(true)}
+                                onCompositionEnd={(e) => handleCompositionEnd('souvenirItem', e)}
+                                onChange={(e) => handleCompositionChange('souvenirItem', e)}
+                                placeholder="상품명" 
+                                className="flex-[2] border rounded p-2 text-sm"
+                            />
+                            {/* [한글 입력 수정 적용] */}
+                            <input 
+                                type="text" 
+                                value={inputs.souvenirReceiver} 
+                                onCompositionStart={() => setIsComposing(true)}
+                                onCompositionEnd={(e) => handleCompositionEnd('souvenirReceiver', e)}
+                                onChange={(e) => handleCompositionChange('souvenirReceiver', e)}
+                                onKeyPress={(e) => e.key === 'Enter' && addSouvenir()} 
+                                placeholder="받는 사람" 
+                                className="flex-1 border rounded p-2 text-sm"
+                            />
                             <button onClick={addSouvenir} className="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
                         </div>
                         <div className="overflow-x-auto">
@@ -643,12 +709,28 @@
                         </div>
 
                         <div className="flex gap-2 mb-4 flex-wrap">
-                            <input type="date" value={inputs.expenseDate} onChange={(e) => handleInput('expenseDate', e.target.value)} className="border rounded p-2 text-sm"/>
-                            <select value={inputs.expenseCategory} onChange={(e) => handleInput('expenseCategory', e.target.value)} className="border rounded p-2 text-sm">
+                            <input type="date" value={inputs.expenseDate} onChange={(e) => setInputValue('expenseDate', e.target.value)} className="border rounded p-2 text-sm"/>
+                            <select value={inputs.expenseCategory} onChange={(e) => setInputValue('expenseCategory', e.target.value)} className="border rounded p-2 text-sm">
                                 <option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option>
                             </select>
-                            <input type="text" value={inputs.expenseItem} onChange={(e) => handleInput('expenseItem', e.target.value)} placeholder="내용" className="flex-1 border rounded p-2 text-sm min-w-[120px]"/>
-                            <input type="text" inputMode="numeric" value={inputs.expenseCost} onChange={(e) => handleInput('expenseCost', e.target.value.replace(/[^0-9]/g, ''))} onKeyPress={(e) => e.key === 'Enter' && addExpense()} placeholder="금액" className="w-24 border rounded p-2 text-sm text-right"/>
+                            {/* [한글 입력 수정 적용] */}
+                            <input 
+                                type="text" 
+                                value={inputs.expenseItem} 
+                                onCompositionStart={() => setIsComposing(true)}
+                                onCompositionEnd={(e) => handleCompositionEnd('expenseItem', e)}
+                                onChange={(e) => handleCompositionChange('expenseItem', e)}
+                                placeholder="내용" 
+                                className="flex-1 border rounded p-2 text-sm min-w-[120px]"/>
+                            {/* [숫자 입력이므로 Composition 무시] */}
+                            <input 
+                                type="text" 
+                                inputMode="numeric" 
+                                value={inputs.expenseCost} 
+                                onChange={(e) => setInputValue('expenseCost', e.target.value.replace(/[^0-9]/g, ''))} 
+                                onKeyPress={(e) => e.key === 'Enter' && addExpense()} 
+                                placeholder="금액" 
+                                className="w-24 border rounded p-2 text-sm text-right"/>
                             <button onClick={addExpense} className="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
                         </div>
 
