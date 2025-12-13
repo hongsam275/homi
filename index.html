@@ -1,94 +1,96 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>나만의 여행 플래너 (로컬 저장)</title>
-    <!-- Tailwind CSS 로드 -->
+    <title>나만의 여행 플래너</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter 폰트 적용 -->
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        /* 일정표 탭 가로 스크롤 시 스크롤바 숨김 */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* 커스텀 스크롤바 숨기기 (일정표 탭) */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        /* 로딩 애니메이션 */
+        .animate-pulse-fast {
+            animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
     </style>
-    
-    <!-- React 및 Babel 로드 -->
-    <!-- [로딩 개선] 프로덕션(production.min) 버전 사용 -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Google Maps API 키가 필요합니다. (지도 기능을 위해) -->
-    <!-- GOOGLE_MAPS_API_KEY가 없으면 지도는 표시되지 않습니다. -->
 </head>
-<body>
-    <div id="root"></div>
+<body class="bg-gray-50 font-sans text-gray-800" id="app-container">
+    <!-- UI will be rendered here by JavaScript -->
+    <div class="flex h-screen items-center justify-center text-teal-600 font-bold animate-pulse-fast">
+        플래너 로딩 중...
+    </div>
 
-    <!-- Lucide-React 아이콘들을 인라인 SVG로 사용하기 위한 헬퍼 -->
-    <script>
-        const ICONS = {
-            Map: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" x2="9" y1="3" y2="18"></line><line x1="15" x2="15" y1="6" y2="21"></line></svg>',
-            Calendar: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>',
-            CheckSquare: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>',
-            Gift: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"></rect><path d="M12 22v-6H8a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4v6"></path><path d="M12 22v-6H8a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4v6"></path><path d="M12 22v-6H8a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4v6"></path><path d="M10 8V5a2 2 0 1 1 4 0v3"></path></svg>',
-            DollarSign: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>',
-            Plus: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
-            Trash2: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M15 6V4c0-1-1-2-2-2h-2c-1 0-2 1-2 2v2"></path></svg>',
-            MapPin: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle></svg>',
-            RotateCcw: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9 9h9"></path><path d="M18 13v6h6"></path></svg>',
-            Search: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>',
-        };
-        // React에서 아이콘을 사용할 수 있도록 헬퍼 함수 정의
-        const IconComponent = ({ name, size, className = "" }) => {
-            const svgMarkup = ICONS[name] ? ICONS[name].replace(/width="16" height="16"/g, `width="${size}" height="${size}"`) : '';
-            return <span className={className} dangerouslySetInnerHTML={{ __html: svgMarkup }}></span>;
-        };
-        // Lucide-react 아이콘을 직접 사용할 수 없으므로, React.createElement 래퍼를 정의
-        const Map = (props) => React.createElement(IconComponent, { name: 'Map', ...props });
-        const Calendar = (props) => React.createElement(IconComponent, { name: 'Calendar', ...props });
-        const CheckSquare = (props) => React.createElement(IconComponent, { name: 'CheckSquare', ...props });
-        const Gift = (props) => React.createElement(IconComponent, { name: 'Gift', ...props });
-        const DollarSign = (props) => React.createElement(IconComponent, { name: 'DollarSign', ...props });
-        const Plus = (props) => React.createElement(IconComponent, { name: 'Plus', ...props });
-        const Trash2 = (props) => React.createElement(IconComponent, { name: 'Trash2', ...props });
-        const MapPin = (props) => React.createElement(IconComponent, { name: 'MapPin', ...props });
-        const RotateCcw = (props) => React.createElement(IconComponent, { name: 'RotateCcw', ...props });
-        const Search = (props) => React.createElement(IconComponent, { name: 'Search', ...props });
-    </script>
-
-    <!-- React Component Code (with Babel transpilation) -->
-    <script type="text/babel">
-        const { useState, useEffect, useCallback, useRef } = React;
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // 로컬 저장소 키
-        const LOCAL_STORAGE_KEY = 'travelPlannerDataV4'; 
+        // Firestore 디버그 로깅 설정
+        setLogLevel('debug');
 
-        // [중요] 여기에 본인의 Google Maps API Key를 입력하세요 (Places API 활성화 필수)
-        const GOOGLE_MAPS_API_KEY = ''; 
-        
-        // --- Helper Components ---
-        const Card = ({ children, className = "" }) => (
-            <div className={`bg-white rounded-xl shadow-lg p-6 ${className}`}>{children}</div>
-        );
+        // --- Configuration & Global Variables (MUST BE DEFINED HERE) ---
+        const GOOGLE_MAPS_API_KEY = 'AIzaSyBwZ1hfLte8a0KcT9V2Tht3da_gi2tC4Rw'; // [중요] 여기에 Google Maps API Key를 입력하세요 (Places API 활성화 필수)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(____firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // --- Google Maps Script Loader (로컬 저장소와 무관) ---
-        const loadGoogleMapsScript = (callback) => {
-            if (window.google && window.google.maps) {
-                callback();
-                return;
-            }
-            if (!GOOGLE_MAPS_API_KEY) {
-                console.warn("Google Maps API Key가 설정되지 않아 지도가 작동하지 않습니다.");
-                return;
-            }
-            const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-            script.async = true;
-            script.defer = true;
-            script.onload = callback;
-            document.head.appendChild(script);
+        // Firebase Initialization
+        let db, auth;
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            window.db = db; // Attach to window for global access
+            window.auth = auth;
+        } catch (e) {
+            console.error("Firebase initialization error:", e);
+        }
+
+        // Global State (Replaces React useState)
+        let state = {
+            data: null,
+            userId: null,
+            isAuthReady: false,
+            activeTab: 'overview',
+            showModal: false,
+            selectedDayIndex: 0,
+            isMapLoaded: false,
+            isComposing: false, // 한국어 입력 중 여부
+            
+            // Overview Inputs (Local temporary state for composition fix)
+            overviewInputs: { 
+                destination: '', 
+                startDate: '', 
+                endDate: '' 
+            },
+            
+            // Ephemeral Inputs (Add forms)
+            inputs: {
+                packingItem: '',
+                souvenirItem: '',
+                souvenirReceiver: '',
+                expenseCategory: '식비',
+                expenseItem: '',
+                expenseCost: '',
+                expenseDate: new Date().toISOString().split('T')[0],
+                eventTime: '09:00',
+                eventTitle: '',
+                eventPlaceName: '',
+                eventLat: null,
+                eventLng: null
+            },
         };
         
         const initialData = {
@@ -103,647 +105,802 @@
             expenses: [] 
         };
 
-        // 로컬 저장소에서 데이터 로드
-        const loadDataFromLocalStorage = () => {
+        // References for Maps & Autocomplete
+        const mapRef = {};
+        const mapInstanceRef = { current: null };
+        const markersRef = { current: [] };
+        const autocompleteInstanceRef = { current: null };
+
+        // --- State Management and Rendering ---
+
+        /**
+         * 상태를 업데이트하고 UI 렌더링을 트리거합니다.
+         * @param {object} newState - 업데이트할 상태 객체
+         */
+        function setState(newState) {
+            Object.assign(state, newState);
+            render();
+        }
+
+        // SVG Icons (Replaces Lucide React)
+        const Icons = {
+            Map: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/></svg>`,
+            Calendar: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+            CheckSquare: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>`,
+            Gift: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="3" y="8" width="18" height="4"/><path d="M12 8v13"/><path d="M19 12V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6"/><path d="M21 12v1.8a2 2 0 0 1-1.12 1.83l-2.4 1.4a2 2 0 0 1-1.76 0l-2.4-1.4A2 2 0 0 1 12 13.8v-1.8"/><path d="M3 12v1.8a2 2 0 0 0 1.12 1.83l2.4 1.4a2 2 0 0 0 1.76 0l2.4-1.4A2 2 0 0 0 12 13.8v-1.8"/></svg>`,
+            DollarSign: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+            Plus: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+            Trash2: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M15 2h-6l-1 4h8z"/></svg>`,
+            MapPin: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>`,
+            RotateCcw: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 13a9 9 0 1 0 4-8"/><path d="M3 10v-3h3"/></svg>`,
+        };
+
+        // --- Firebase Logic ---
+
+        const updateFirestore = async (newData) => {
+            if (!db || !state.userId) return;
+            const planDocRef = doc(db, 'artifacts', appId, 'users', state.userId, 'travelPlans', 'myPlanV3');
             try {
-                const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-                return storedData ? JSON.parse(storedData) : initialData;
-            } catch (error) {
-                console.error("Error loading data from localStorage:", error);
-                return initialData;
+                // Remove Map objects if any, though it shouldn't happen here
+                const sanitizedData = JSON.parse(JSON.stringify(newData)); 
+                await setDoc(planDocRef, sanitizedData); 
+            } catch (e) {
+                console.error("Error updating document:", e);
             }
         };
 
+        const startFirestoreListener = () => {
+            if (!db || !state.userId) return;
 
-        function App() {
-          // App State: 초기 데이터를 로컬 저장소에서 로드
-          const [data, setData] = useState(() => loadDataFromLocalStorage());
-          const [activeTab, setActiveTab] = useState('overview');
-          const [showModal, setShowModal] = useState(false);
-          
-          // [NEW STATE] 한글 입력 조합 상태 관리 (Jamo 분리 현상 방지)
-          const [isComposing, setIsComposing] = useState(false); 
+            const planDocRef = doc(db, 'artifacts', appId, 'users', state.userId, 'travelPlans', 'myPlanV3');
+            onSnapshot(planDocRef, (docSnap) => {
+                let fetchedData;
+                if (docSnap.exists()) {
+                    fetchedData = docSnap.data();
+                } else {
+                    fetchedData = initialData;
+                    updateFirestore(initialData); // 초기 데이터 설정
+                }
+                
+                // Firestore 데이터가 변경되면 로컬 상태를 업데이트하고 렌더링
+                setState({ 
+                    data: fetchedData,
+                    overviewInputs: {
+                        destination: fetchedData.destination || '',
+                        startDate: fetchedData.startDate || '',
+                        endDate: fetchedData.endDate || '',
+                    }
+                });
+                
+                // Overview 탭이 활성화되어 있고 맵이 로드되었으면 마커 업데이트
+                if (state.activeTab === 'overview' && state.isMapLoaded) {
+                     updateMapMarkers();
+                }
 
-          // Schedule View State
-          const [selectedDayIndex, setSelectedDayIndex] = useState(0); 
+            }, (error) => {
+                console.error("Firestore Snapshot Error:", error);
+            });
+        };
 
-          // Maps State
-          const mapRef = useRef(null);
-          const mapInstanceRef = useRef(null);
-          const markersRef = useRef([]);
-          const autocompleteInputRef = useRef(null);
-          const autocompleteInstanceRef = useRef(null);
-          const [isMapLoaded, setIsMapLoaded] = useState(false);
-
-          // Inputs State
-          const [inputs, setInputs] = useState({
-            destination: data.destination, // 로드된 데이터의 destination 사용
-            packingItem: '',
-            souvenirItem: '',
-            souvenirReceiver: '',
-            expenseCategory: '식비',
-            expenseItem: '',
-            expenseCost: '',
-            expenseDate: new Date().toISOString().split('T')[0],
-            
-            // Schedule Event Inputs
-            eventTime: '09:00',
-            eventTitle: '',
-            eventPlaceName: '',
-            eventLat: null,
-            eventLng: null
-          });
-
-          // --- Local Storage Logic (Firestore 대체) ---
-          
-          // data 변경 시 로컬 저장소에 저장
-          useEffect(() => {
-              try {
-                  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));
-              } catch (error) {
-                  console.error("Error saving data to localStorage:", error);
-              }
-          }, [data]);
-          
-          // Firestore 대신, 로컬 상태를 업데이트하는 함수
-          const updateData = useCallback((newData) => {
-            // inputs.destination 값을 newData에 병합하여 data를 업데이트
-            setData({ 
-                ...newData, 
-                destination: newData.destination || inputs.destination // inputs의 최신 destination 사용
-            }); 
-          }, [inputs.destination]);
-
-
-          // --- Input Handling Logic ---
-          
-          // 입력 상태만 업데이트하는 유틸리티 함수
-          const setInputValue = (key, value) => {
-              setInputs(prev => ({ ...prev, [key]: value }));
-          };
-
-          // 한글 조합 중일 때만 onChange를 무시하고, 조합 완료 시 최종 값을 업데이트하는 핸들러
-          const handleCompositionChange = (key, e) => {
-            if (!isComposing) {
-                setInputValue(key, e.target.value);
-            } else {
-                setInputs(prev => ({ ...prev, [key]: e.target.value }));
+        const authenticate = async () => {
+            try {
+                let user;
+                if (initialAuthToken) {
+                    const result = await signInWithCustomToken(auth, initialAuthToken);
+                    user = result.user;
+                } else {
+                    const result = await signInAnonymously(auth);
+                    user = result.user;
+                }
+                setState({ userId: user.uid, isAuthReady: true });
+                startFirestoreListener();
+            } catch (error) {
+                console.error("Auth Error:", error);
+                // Auth failed, still set ready to show initial data
+                setState({ isAuthReady: true, data: initialData }); 
             }
-          };
+        };
 
-          const handleCompositionEnd = (key, e) => {
-              setIsComposing(false);
-              // 조합이 끝난 후 최종 값을 state에 반영
-              setInputValue(key, e.target.value); 
-          };
-          
-          
-          // --- Maps & Places Logic ---
-          
-          useEffect(() => {
-              // Load map script once
-              if (!isMapLoaded && GOOGLE_MAPS_API_KEY) {
-                  loadGoogleMapsScript(() => setIsMapLoaded(true));
-              }
-          }, []);
+        // --- Input Composition Handlers (Korean Input Fix) ---
 
-          // Initialize Autocomplete when input is available
-          useEffect(() => {
-              if (isMapLoaded && activeTab === 'schedule' && autocompleteInputRef.current && window.google) {
-                  autocompleteInstanceRef.current = new window.google.maps.places.Autocomplete(autocompleteInputRef.current);
-                  autocompleteInstanceRef.current.addListener("place_changed", () => {
-                      const place = autocompleteInstanceRef.current.getPlace();
-                      if (place.geometry) {
-                          setInputs(prev => ({
-                              ...prev,
-                              eventPlaceName: place.name,
-                              eventLat: place.geometry.location.lat(),
-                              eventLng: place.geometry.location.lng()
-                          }));
-                      }
-                  });
-              }
-          }, [isMapLoaded, activeTab, selectedDayIndex]); 
+        const handleCompositionStart = () => setState({ isComposing: true });
+        const handleCompositionEnd = () => setState({ isComposing: false });
+        
+        // Ephemeral Input Handler (for packing, souvenir, event forms)
+        const handleEphemeralInput = (key, value) => {
+            const newInputs = { ...state.inputs, [key]: value };
+            setState({ inputs: newInputs });
+        };
+        
+        // Overview Input Handler (for local state only)
+        const handleOverviewChange = (key, value) => {
+            const newOverviewInputs = { ...state.overviewInputs, [key]: value };
+            setState({ overviewInputs: newOverviewInputs });
+        };
 
-          // Initialize Overview Map
-          useEffect(() => {
-              if (isMapLoaded && activeTab === 'overview' && mapRef.current && window.google) {
-                  if (!mapInstanceRef.current) {
-                      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-                          center: { lat: 33.3846, lng: 126.5535 }, // Default Center (제주)
-                          zoom: 10,
-                      });
-                  }
-                  updateMapMarkers();
-              }
-          }, [isMapLoaded, activeTab, data]); // data를 의존성에 추가하여 데이터 변경 시 지도 업데이트
+        // Overview Input Commit (only called on blur or composition end)
+        const commitOverviewChange = (key, finalValue = null) => {
+            if (state.isComposing) return; // Composition 중이면 커밋하지 않음
+            
+            const valueToCommit = finalValue ?? state.overviewInputs[key];
+            if (state.data && state.data[key] !== valueToCommit) {
+                const newData = { ...state.data, [key]: valueToCommit };
+                updateFirestore(newData);
+            }
+        };
+        
+        // --- Maps Logic ---
 
-          const updateMapMarkers = () => {
-              if (!mapInstanceRef.current || !data?.schedule || !window.google) return;
+        const loadGoogleMapsScript = () => {
+            if (window.google && window.google.maps) {
+                setState({ isMapLoaded: true });
+                return;
+            }
+            if (!GOOGLE_MAPS_API_KEY) {
+                console.warn("Google Maps API Key is missing. Maps will not load.");
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+            script.async = true;
+            script.defer = true;
+            script.onload = () => setState({ isMapLoaded: true });
+            document.head.appendChild(script);
+        };
+        
+        const initOverviewMap = () => {
+            if (!state.isMapLoaded || mapInstanceRef.current || !mapRef.overview) return;
 
-              // Clear markers
-              markersRef.current.forEach(m => m.setMap(null));
-              markersRef.current = [];
+            mapInstanceRef.current = new window.google.maps.Map(mapRef.overview, {
+                center: { lat: 33.3846, lng: 126.5535 }, // Default Center (Jeju)
+                zoom: 10,
+            });
+            updateMapMarkers();
+        };
 
-              const bounds = new window.google.maps.LatLngBounds();
-              let hasMarkers = false;
+        const updateMapMarkers = () => {
+            if (!mapInstanceRef.current || !state.data?.schedule) return;
 
-              // Pin Colors per Day
-              const colors = ['red', 'blue', 'green', 'orange', 'purple', 'yellow'];
+            // Clear markers
+            markersRef.current.forEach(m => m.setMap(null));
+            markersRef.current = [];
 
-              data.schedule.forEach((day, idx) => {
-                  if(day.events) {
-                      day.events.forEach(event => {
-                          if (event.lat && event.lng) {
-                              const color = colors[idx % colors.length];
-                              const iconUrl = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
-                              
-                              const marker = new window.google.maps.Marker({
-                                  position: { lat: event.lat, lng: event.lng },
-                                  map: mapInstanceRef.current,
-                                  title: event.title,
-                                  icon: iconUrl
-                              });
-                              
-                              const infoWindow = new window.google.maps.InfoWindow({
+            const bounds = new window.google.maps.LatLngBounds();
+            let hasMarkers = false;
+            const colors = ['red', 'blue', 'green', 'orange', 'purple', 'yellow'];
+
+            state.data.schedule.forEach((day, idx) => {
+                if(day.events) {
+                    day.events.forEach(event => {
+                        if (event.lat && event.lng) {
+                            const color = colors[idx % colors.length];
+                            const iconUrl = `http://maps.google.com/mapfiles/ms/icons/${color}-dot.png`;
+                            
+                            const marker = new window.google.maps.Marker({
+                                position: { lat: event.lat, lng: event.lng },
+                                map: mapInstanceRef.current,
+                                title: event.title,
+                                icon: iconUrl
+                            });
+                            
+                            const infoWindow = new window.google.maps.InfoWindow({
                                 content: `<div style="color:black"><b>Day ${day.day}</b><br/>${event.title}<br/>${event.time}</div>`
-                              });
-                              
-                              marker.addListener("click", () => infoWindow.open(mapInstanceRef.current, marker));
+                            });
+                            
+                            marker.addListener("click", () => infoWindow.open(mapInstanceRef.current, marker));
 
-                              markersRef.current.push(marker);
-                              bounds.extend(marker.getPosition());
-                              hasMarkers = true;
-                          }
-                      });
-                  }
-              });
+                            markersRef.current.push(marker);
+                            bounds.extend(marker.getPosition());
+                            hasMarkers = true;
+                        }
+                    });
+                }
+            });
 
-              if (hasMarkers) {
-                  mapInstanceRef.current.fitBounds(bounds);
-              }
-          };
+            if (hasMarkers) {
+                mapInstanceRef.current.fitBounds(bounds);
+            }
+        };
+        
+        const initAutocomplete = () => {
+            if (!state.isMapLoaded || state.activeTab !== 'schedule' || !document.getElementById('autocomplete-input')) return;
+
+            const input = document.getElementById('autocomplete-input');
+
+            if (autocompleteInstanceRef.current) {
+                window.google.maps.event.clearInstanceListeners(autocompleteInstanceRef.current);
+            }
+
+            autocompleteInstanceRef.current = new window.google.maps.places.Autocomplete(input);
+            
+            const listener = autocompleteInstanceRef.current.addListener("place_changed", () => {
+                const place = autocompleteInstanceRef.current.getPlace();
+                if (place.geometry) {
+                    handleEphemeralInput('eventPlaceName', place.name);
+                    handleEphemeralInput('eventLat', place.geometry.location.lat());
+                    handleEphemeralInput('eventLng', place.geometry.location.lng());
+                    input.value = place.name; // Autocomplete가 선택한 이름으로 input 업데이트
+                }
+            });
+        };
+
+        // --- Action Handlers ---
+
+        const addDay = () => {
+            const newDayNum = state.data.schedule.length + 1;
+            const newSchedule = [...state.data.schedule, { id: Date.now(), day: newDayNum, date: '', events: [] }];
+            updateFirestore({ ...state.data, schedule: newSchedule });
+            setState({ selectedDayIndex: newSchedule.length - 1 }); 
+        };
+
+        const deleteDay = (e, index) => {
+            e.stopPropagation();
+            if (state.data.schedule.length <= 1) return;
+            const newSchedule = state.data.schedule.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 }));
+            updateFirestore({ ...state.data, schedule: newSchedule });
+            setState({ selectedDayIndex: Math.max(0, index - 1) });
+        };
+
+        const updateDayDate = (date) => {
+            const newSchedule = [...state.data.schedule];
+            newSchedule[state.selectedDayIndex].date = date;
+            updateFirestore({ ...state.data, schedule: newSchedule });
+        };
+
+        const addEventToDay = () => {
+            if (!state.inputs.eventTitle) return;
+            
+            const newEvent = {
+                id: Date.now(),
+                time: state.inputs.eventTime,
+                title: state.inputs.eventTitle,
+                placeName: state.inputs.eventPlaceName,
+                lat: state.inputs.eventLat,
+                lng: state.inputs.eventLng
+            };
+
+            const newSchedule = [...state.data.schedule];
+            if (!newSchedule[state.selectedDayIndex].events) newSchedule[state.selectedDayIndex].events = [];
+            
+            newSchedule[state.selectedDayIndex].events.push(newEvent);
+            newSchedule[state.selectedDayIndex].events.sort((a, b) => a.time.localeCompare(b.time));
+
+            updateFirestore({ ...state.data, schedule: newSchedule });
+            
+            // Ephemeral inputs reset
+            const resetInputs = { 
+                eventTitle: '', eventPlaceName: '', eventLat: null, eventLng: null 
+            };
+            setState({ inputs: { ...state.inputs, ...resetInputs }});
+            const autocompleteInput = document.getElementById('autocomplete-input');
+            if (autocompleteInput) autocompleteInput.value = '';
+        };
+
+        const deleteEvent = (eventIndex) => {
+            const newSchedule = [...state.data.schedule];
+            newSchedule[state.selectedDayIndex].events.splice(eventIndex, 1);
+            updateFirestore({ ...state.data, schedule: newSchedule });
+        };
+        
+        const addExpense = () => {
+            const cost = parseInt(state.inputs.expenseCost.replace(/,/g, ''));
+            if (!state.inputs.expenseItem || isNaN(cost)) return;
+            const newExpenses = [...state.data.expenses, { id: Date.now(), category: state.inputs.expenseCategory, item: state.inputs.expenseItem, cost, date: state.inputs.expenseDate }];
+            updateFirestore({ ...state.data, expenses: newExpenses });
+            
+            const resetInputs = { expenseItem: '', expenseCost: '' };
+            setState({ inputs: { ...state.inputs, ...resetInputs }});
+        };
+
+        const deleteExpense = (id) => {
+            const newExpenses = state.data.expenses.filter(e => e.id !== id);
+            updateFirestore({ ...state.data, expenses: newExpenses });
+        };
+
+        const addPacking = () => {
+            if (!state.inputs.packingItem) return;
+            updateFirestore({ ...state.data, packingList: [...state.data.packingList, { id: Date.now(), text: state.inputs.packingItem, checked: false }]});
+            setState({ inputs: { ...state.inputs, packingItem: '' }});
+        };
+
+        const addSouvenir = () => {
+            if (!state.inputs.souvenirItem) return;
+            updateFirestore({ ...state.data, souvenirs: [...state.data.souvenirs, { id: Date.now(), item: state.inputs.souvenirItem, receiver: state.inputs.souvenirReceiver, bought: false }]});
+            setState({ inputs: { ...state.inputs, souvenirItem: '', souvenirReceiver: '' }});
+        };
+
+        const toggleCheck = (list, id, field='checked') => {
+            const updated = state.data[list].map(i => i.id === id ? { ...i, [field]: !i[field] } : i);
+            updateFirestore({ ...state.data, [list]: updated });
+        };
+        
+        const deleteItem = (list, id) => {
+            const updated = state.data[list].filter(i => i.id !== id);
+            updateFirestore({ ...state.data, [list]: updated });
+        };
+        
+        // --- Rendering Functions ---
+
+        const getTabsHTML = () => {
+            const tabs = [
+                { id: 'overview', label: '여행 개요', icon: Icons.Map },
+                { id: 'schedule', label: '일정표', icon: Icons.Calendar },
+                { id: 'packing', label: '준비물', icon: Icons.CheckSquare },
+                { id: 'souvenir', label: '기념품', icon: Icons.Gift },
+                { id: 'expense', label: '가계부', icon: Icons.DollarSign },
+            ];
+
+            return tabs.map(tab => `
+                <button
+                    onclick="setState({ activeTab: '${tab.id}' })"
+                    class="flex-1 min-w-[50px] py-1 px-2 rounded-md flex flex-col items-center justify-center text-xs gap-0.5 transition-all
+                    ${state.activeTab === tab.id ? 'bg-teal-100 text-teal-700 font-bold shadow-inner' : 'text-gray-500 hover:bg-gray-100'}"
+                >
+                    ${tab.icon('currentColor')} ${tab.label}
+                </button>
+            `).join('');
+        };
+
+        const getOverviewContentHTML = () => {
+            const totalExpense = state.data?.expenses?.reduce((sum, item) => sum + Number(item.cost), 0) || 0;
+            
+            // Map logic is external, just need the container
+            if (state.activeTab !== 'overview') return '';
+
+            // This must be inside the render call so we can re-attach the mapRef
+            setTimeout(() => {
+                mapRef.overview = document.getElementById('overview-map-container');
+                if (state.isMapLoaded && mapRef.overview) initOverviewMap();
+            }, 0);
 
 
-          // --- Actions ---
+            return `
+               <div class="space-y-6 animate-fade-in">
+                  <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">✈️ 여행 기본 정보</h2>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">여행지</label>
+                        <input 
+                            id="destination-input"
+                            type="text" 
+                            value="${state.overviewInputs.destination}" 
+                            oninput="handleOverviewChange('destination', this.value)" 
+                            onblur="commitOverviewChange('destination')"
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="commitOverviewChange('destination', this.value)"
+                            class="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                     </div>
+                     <div class="bg-red-50 border border-red-100 rounded-lg p-3 flex flex-col justify-center">
+                        <label class="text-sm font-medium text-red-500">총 지출 (가계부 연동)</label>
+                        <div class="text-2xl font-bold text-red-700">${totalExpense.toLocaleString()}원</div>
+                     </div>
+                  </div>
 
-          // Schedule Actions
-          const addDay = () => {
-              const newDayNum = data.schedule.length + 1;
-              const newSchedule = [...data.schedule, { id: Date.now(), day: newDayNum, date: '', events: [] }];
-              updateData({ ...data, schedule: newSchedule });
-              setSelectedDayIndex(newSchedule.length - 1); 
-          };
+                  <div class="grid grid-cols-2 gap-4">
+                     <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">시작일</label>
+                        <input 
+                            type="date" 
+                            value="${state.overviewInputs.startDate}" 
+                            onchange="commitOverviewChange('startDate', this.value)" 
+                            class="w-full border rounded-lg p-2"
+                        />
+                     </div>
+                     <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">종료일</label>
+                        <input 
+                            type="date" 
+                            value="${state.overviewInputs.endDate}" 
+                            onchange="commitOverviewChange('endDate', this.value)" 
+                            class="w-full border rounded-lg p-2"
+                        />
+                     </div>
+                  </div>
 
-          const deleteDay = (e, index) => {
-              e.stopPropagation();
-              if (data.schedule.length <= 1) return; 
-              const newSchedule = data.schedule.filter((_, i) => i !== index).map((d, i) => ({ ...d, day: i + 1 }));
-              updateData({ ...data, schedule: newSchedule });
-              setSelectedDayIndex(Math.max(0, index - 1));
-          };
+                  <!-- Google Map Overview -->
+                  <div class="mt-6">
+                     <label class="block text-sm font-medium text-gray-600 mb-2">📍 여행 지도 (일정표 핀 표시)</label>
+                     <div class="w-full h-96 bg-gray-200 rounded-lg overflow-hidden border relative">
+                        <div id="overview-map-container" class="w-full h-full"></div>
+                        ${!state.isMapLoaded ? '<div class="absolute inset-0 flex items-center justify-center text-gray-500">지도를 불러오는 중... (API 키 확인 필요)</div>' : ''}
+                     </div>
+                  </div>
+               </div>
+            `;
+        };
 
-          const updateDayDate = (date) => {
-              const newSchedule = [...data.schedule];
-              newSchedule[selectedDayIndex].date = date;
-              updateData({ ...data, schedule: newSchedule });
-          };
+        const getScheduleContentHTML = () => {
+            if (state.activeTab !== 'schedule') return '';
+            
+            const currentDay = state.data.schedule[state.selectedDayIndex];
+            
+            // Initialize Autocomplete when the tab is active
+            setTimeout(() => initAutocomplete(), 0);
 
-          const addEventToDay = () => {
-              if (!inputs.eventTitle) return;
-              
-              const newEvent = {
-                  id: Date.now(),
-                  time: inputs.eventTime,
-                  title: inputs.eventTitle,
-                  placeName: inputs.eventPlaceName,
-                  lat: inputs.eventLat,
-                  lng: inputs.eventLng
-              };
+            const dayTabsHTML = state.data.schedule.map((day, idx) => `
+                <button 
+                    onclick="setState({ selectedDayIndex: ${idx} })"
+                    class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap border
+                    ${state.selectedDayIndex === idx ? 'bg-teal-600 text-white border-teal-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}"
+                >
+                    Day ${day.day}
+                    ${idx > 0 ? `<span onclick="deleteDay(event, ${idx})" class="ml-2 opacity-60 hover:opacity-100 hover:text-red-300">×</span>` : ''}
+                </button>
+            `).join('');
 
-              const newSchedule = [...data.schedule];
-              if (!newSchedule[selectedDayIndex].events) newSchedule[selectedDayIndex].events = [];
-              
-              newSchedule[selectedDayIndex].events.push(newEvent);
-              newSchedule[selectedDayIndex].events.sort((a, b) => a.time.localeCompare(b.time));
+            const eventsListHTML = currentDay.events && currentDay.events.length > 0 ? 
+                currentDay.events.map((event, eIdx) => `
+                    <div key="${event.id}" class="relative pl-10 group">
+                        <div class="absolute left-[11px] top-4 w-3 h-3 bg-teal-500 rounded-full border-2 border-white shadow-sm z-10"></div>
+                        <div class="bg-white border border-gray-100 rounded-lg p-3 shadow-sm hover:shadow-md transition flex justify-between items-start">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-gray-800 text-lg">${event.time}</span>
+                                    <span class="text-gray-900 font-medium">${event.title}</span>
+                                </div>
+                                ${event.placeName ? `
+                                    <div class="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                                        ${Icons.MapPin('currentColor')} ${event.placeName}
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <button onclick="deleteEvent(${eIdx})" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">
+                                ${Icons.Trash2('currentColor')}
+                            </button>
+                        </div>
+                    </div>
+                `).join('') : 
+                '<div class="text-center text-gray-400 py-10 pl-4">등록된 일정이 없습니다.</div>';
 
-              updateData({ ...data, schedule: newSchedule });
-              setInputs(prev => ({ ...prev, eventTitle: '', eventPlaceName: '', eventLat: null, eventLng: null }));
-              if (autocompleteInputRef.current) autocompleteInputRef.current.value = '';
-          };
-
-          const deleteEvent = (eventIndex) => {
-              const newSchedule = [...data.schedule];
-              newSchedule[selectedDayIndex].events.splice(eventIndex, 1);
-              updateData({ ...data, schedule: newSchedule });
-          };
-
-          // Other Actions
-          const addExpense = () => {
-              const cost = parseInt(inputs.expenseCost.replace(/,/g, ''));
-              if (!inputs.expenseItem || isNaN(cost)) return;
-              const newExpenses = [...data.expenses, { id: Date.now(), category: inputs.expenseCategory, item: inputs.expenseItem, cost, date: inputs.expenseDate }];
-              updateData({ ...data, expenses: newExpenses });
-              setInputs(prev => ({ ...prev, expenseItem: '', expenseCost: '' }));
-          };
-
-          const deleteExpense = (id) => {
-              const newExpenses = data.expenses.filter(e => e.id !== id);
-              updateData({ ...data, expenses: newExpenses });
-          };
-
-          const addPacking = () => {
-            if (!inputs.packingItem) return;
-            updateData({ ...data, packingList: [...data.packingList, { id: Date.now(), text: inputs.packingItem, checked: false }]});
-            setInputs(prev => ({ ...prev, packingItem: '' }));
-          };
-
-          const addSouvenir = () => {
-            if (!inputs.souvenirItem) return;
-            updateData({ ...data, souvenirs: [...data.souvenirs, { id: Date.now(), item: inputs.souvenirItem, receiver: inputs.souvenirReceiver, bought: false }]});
-            setInputs(prev => ({ ...prev, souvenirItem: '', souvenirReceiver: '' }));
-          };
-
-          const toggleCheck = (list, id, field='checked') => {
-              const updated = data[list].map(i => i.id === id ? { ...i, [field]: !i[field] } : i);
-              updateData({ ...data, [list]: updated });
-          };
-          
-          const deleteItem = (list, id) => {
-              const updated = data[list].filter(i => i.id !== id);
-              updateData({ ...data, [list]: updated });
-          };
-
-          const totalExpense = data?.expenses?.reduce((sum, item) => sum + Number(item.cost), 0) || 0;
-
-
-          // 초기 로드 시 data는 이미 loadDataFromLocalStorage()를 통해 로드되었으므로
-          // 별도의 로딩 상태 없이 바로 렌더링을 시작합니다.
-          
-          return (
-            <div className="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
-              {/* Header */}
-              <header className="bg-teal-600 text-white p-4 shadow-md sticky top-0 z-20">
-                <div className="max-w-4xl mx-auto flex justify-between items-center">
-                  <h1 className="text-xl font-bold flex items-center gap-2">
-                    <MapPin size={24} /> 나만의 여행 플래너 (로컬)
-                  </h1>
-                  <div className="flex items-center gap-3">
-                     <button onClick={() => setShowModal(true)} className="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">
-                        <RotateCcw size={12}/> 초기화
+            return `
+               <div class="space-y-4 animate-fade-in">
+                  <h2 class="text-2xl font-bold text-gray-800">📅 상세 일정</h2>
+                  
+                  <!-- Horizontal Day Tabs -->
+                  <div class="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                     ${dayTabsHTML}
+                     <button onclick="addDay()" class="flex-shrink-0 px-3 py-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300">
+                        ${Icons.Plus('currentColor')}
                      </button>
                   </div>
-                </div>
-              </header>
 
-              <div className="max-w-4xl mx-auto p-4">
-                {/* Navigation Tabs */}
-                <div className="flex gap-1 mb-6 bg-white p-2 rounded-lg shadow-sm overflow-x-auto justify-between">
-                  {[
-                    { id: 'overview', label: '여행 개요', icon: Map },
-                    { id: 'schedule', label: '일정표', icon: Calendar },
-                    { id: 'packing', label: '준비물', icon: CheckSquare },
-                    { id: 'souvenir', label: '기념품', icon: Gift },
-                    { id: 'expense', label: '가계부', icon: DollarSign },
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex-1 min-w-[50px] py-1 px-2 rounded-md flex flex-col items-center justify-center text-xs gap-0.5 transition-all
-                        ${activeTab === tab.id ? 'bg-teal-100 text-teal-700 font-bold shadow-inner' : 'text-gray-500 hover:bg-gray-100'}`}
-                    >
-                      {React.createElement(tab.icon, { size: 16 })} {tab.label}
-                    </button>
-                  ))}
-                </div>
+                  <!-- Selected Day Content -->
+                  <div class="bg-white rounded-xl shadow-lg p-6 min-h-[400px]">
+                     <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <h3 class="text-lg font-bold text-teal-700">Day ${currentDay.day}</h3>
+                        <input 
+                            type="date" 
+                            value="${currentDay.date}" 
+                            onchange="updateDayDate(this.value)"
+                            class="border rounded px-2 py-1 text-sm text-gray-600"
+                        />
+                     </div>
 
-                {/* --- 1. 여행 개요 (Overview) --- */}
-                {activeTab === 'overview' && (
-                   <div className="space-y-6 animate-fade-in">
-                      <h2 className="text-2xl font-bold text-gray-800 border-b pb-2">✈️ 여행 기본 정보</h2>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">여행지</label>
-                            {/* [한글 입력 수정 적용] */}
+                     <!-- Add Event Form -->
+                     <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-6 grid grid-cols-1 md:grid-cols-[100px_1fr_1fr_auto] gap-2 items-center">
+                        <input 
+                            type="time" 
+                            value="${state.inputs.eventTime}" 
+                            onchange="handleEphemeralInput('eventTime', this.value)"
+                            class="border rounded p-2 text-sm w-full"
+                        />
+                        <input 
+                            id="event-title-input"
+                            type="text" 
+                            placeholder="일정 제목 (예: 점심 식사)" 
+                            value="${state.inputs.eventTitle}" 
+                            oninput="handleEphemeralInput('eventTitle', this.value)"
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="handleCompositionEnd()"
+                            class="border rounded p-2 text-sm w-full"
+                        />
+                        <div class="relative w-full">
                             <input 
+                                id="autocomplete-input"
                                 type="text" 
-                                value={inputs.destination} 
-                                onCompositionStart={() => setIsComposing(true)}
-                                onCompositionEnd={(e) => { handleCompositionEnd('destination', e); updateData({...data, destination: e.target.value}); }}
-                                onChange={(e) => { handleCompositionChange('destination', e); if (!isComposing) updateData({...data, destination: e.target.value}); }}
-                                className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-teal-500"/>
-                         </div>
-                         {/* Total Expense Display (Linked to Expense Tab) */}
-                         <div className="bg-red-50 border border-red-100 rounded-lg p-3 flex flex-col justify-center">
-                            <label className="text-sm font-medium text-red-500">총 지출 (가계부 연동)</label>
-                            <div className="text-2xl font-bold text-red-700">{totalExpense.toLocaleString()}원</div>
-                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">시작일</label>
-                            <input type="date" value={data.startDate} onChange={(e) => updateData({...data, startDate: e.target.value})} className="w-full border rounded-lg p-2"/>
-                         </div>
-                         <div>
-                            <label className="block text-sm font-medium text-gray-600 mb-1">종료일</label>
-                            <input type="date" value={data.endDate} onChange={(e) => updateData({...data, endDate: e.target.value})} className="w-full border rounded-lg p-2"/>
-                         </div>
-                      </div>
-
-                      {/* Google Map Overview */}
-                      <div className="mt-6">
-                         <label className="block text-sm font-medium text-gray-600 mb-2">📍 여행 지도 (일정표 핀 표시)</label>
-                         <div className="w-full h-96 bg-gray-200 rounded-lg overflow-hidden border relative">
-                            <div ref={mapRef} className="w-full h-full"></div>
-                            {!GOOGLE_MAPS_API_KEY && <div className="absolute inset-0 flex items-center justify-center text-gray-500 bg-gray-100 bg-opacity-70">Google Maps API Key가 없어 지도를 표시할 수 없습니다.</div>}
-                         </div>
-                      </div>
-                   </div>
-                )}
-
-                {/* --- 2. 일정표 (Schedule) --- */}
-                {activeTab === 'schedule' && (
-                   <div className="space-y-4 animate-fade-in">
-                      <h2 className="text-2xl font-bold text-gray-800">📅 상세 일정</h2>
-                      
-                      {/* Horizontal Day Tabs */}
-                      <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                         {data.schedule.map((day, idx) => (
-                            <button 
-                                key={day.id} 
-                                onClick={() => setSelectedDayIndex(idx)}
-                                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap border
-                                ${selectedDayIndex === idx ? 'bg-teal-600 text-white border-teal-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                            >
-                                Day {day.day}
-                                {idx > 0 && (
-                                    <span 
-                                        onClick={(e) => deleteDay(e, idx)}
-                                        className="ml-2 opacity-60 hover:opacity-100 hover:text-red-300"
-                                    >×</span>
-                                )}
-                            </button>
-                         ))}
-                         <button onClick={addDay} className="flex-shrink-0 px-3 py-2 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300">
-                            <Plus size={16}/>
-                         </button>
-                      </div>
-
-                      {/* Selected Day Content */}
-                      <Card className="min-h-[400px]">
-                         <div className="flex justify-between items-center border-b pb-3 mb-4">
-                            <h3 className="text-lg font-bold text-teal-700">Day {data.schedule[selectedDayIndex].day}</h3>
-                            <input 
-                                type="date" 
-                                value={data.schedule[selectedDayIndex].date} 
-                                onChange={(e) => updateDayDate(e.target.value)}
-                                className="border rounded px-2 py-1 text-sm text-gray-600"
+                                placeholder="장소 검색 (구글맵)" 
+                                class="border rounded p-2 text-sm w-full pr-8"
                             />
-                         </div>
-
-                         {/* Add Event Form */}
-                         <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-6 grid grid-cols-1 md:grid-cols-[100px_1fr_1fr_auto] gap-2 items-center">
-                            <input 
-                                type="time" 
-                                value={inputs.eventTime} 
-                                onChange={(e) => setInputValue('eventTime', e.target.value)}
-                                className="border rounded p-2 text-sm w-full"
-                            />
-                            {/* [한글 입력 수정 적용] */}
-                            <input 
-                                type="text" 
-                                placeholder="일정 제목 (예: 점심 식사)" 
-                                value={inputs.eventTitle} 
-                                onCompositionStart={() => setIsComposing(true)}
-                                onCompositionEnd={(e) => handleCompositionEnd('eventTitle', e)}
-                                onChange={(e) => handleCompositionChange('eventTitle', e)}
-                                className="border rounded p-2 text-sm w-full"
-                            />
-                            <div className="relative w-full">
-                                <input 
-                                    ref={autocompleteInputRef}
-                                    type="text" 
-                                    placeholder="장소 검색 (구글맵)" 
-                                    className="border rounded p-2 text-sm w-full pr-8"
-                                    disabled={!GOOGLE_MAPS_API_KEY}
-                                />
-                                <Search size={14} className="absolute right-3 top-3 text-gray-400"/>
-                            </div>
-                            <button onClick={addEventToDay} className="bg-teal-600 text-white p-2 rounded hover:bg-teal-700 w-full md:w-auto">
-                                <Plus size={20} className="mx-auto"/>
-                            </button>
-                         </div>
-
-                         {/* Events List */}
-                         <div className="space-y-3 relative">
-                            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
-                            {data.schedule[selectedDayIndex].events && data.schedule[selectedDayIndex].events.length > 0 ? (
-                                data.schedule[selectedDayIndex].events.map((event, eIdx) => (
-                                    <div key={event.id} className="relative pl-10 group">
-                                        <div className="absolute left-[11px] top-4 w-3 h-3 bg-teal-500 rounded-full border-2 border-white shadow-sm z-10"></div>
-                                        <div className="bg-white border border-gray-100 rounded-lg p-3 shadow-sm hover:shadow-md transition flex justify-between items-start">
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-gray-800 text-lg">{event.time}</span>
-                                                    <span className="text-gray-900 font-medium">{event.title}</span>
-                                                </div>
-                                                {event.placeName && (
-                                                    <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                                                        <MapPin size={12}/> {event.placeName}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <button onClick={() => deleteEvent(eIdx)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">
-                                                <Trash2 size={16}/>
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center text-gray-400 py-10 pl-4">등록된 일정이 없습니다.</div>
-                            )}
-                         </div>
-                      </Card>
-                   </div>
-                )}
-
-                {/* --- 3. 준비물 (Packing) --- */}
-                {activeTab === 'packing' && (
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-gray-800 border-b pb-2">🎒 준비물 리스트</h2>
-                        <div className="flex gap-2">
-                            {/* [한글 입력 수정 적용] */}
-                            <input 
-                                type="text" 
-                                value={inputs.packingItem} 
-                                onCompositionStart={() => setIsComposing(true)}
-                                onCompositionEnd={(e) => handleCompositionEnd('packingItem', e)}
-                                onChange={(e) => handleCompositionChange('packingItem', e)}
-                                onKeyPress={(e) => e.key === 'Enter' && addPacking()} 
-                                placeholder="준비물 입력..." 
-                                className="flex-1 border rounded-lg p-2"
-                            />
-                            <button onClick={addPacking} className="bg-teal-600 text-white px-4 rounded-lg hover:bg-teal-700">추가</button>
+                            ${Icons.Search('text-gray-400')}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                            {data.packingList.map(item => (
-                                <div key={item.id} onClick={() => toggleCheck('packingList', item.id)} className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${item.checked ? 'bg-gray-100 border-gray-200' : 'bg-white border-teal-100 shadow-sm hover:shadow'}`}>
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <CheckSquare size={18} className={item.checked ? "text-teal-600" : "text-gray-300"}/> 
-                                        <span className={`truncate ${item.checked ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{item.text}</span>
-                                    </div>
-                                    <button onClick={(e) => { e.stopPropagation(); deleteItem('packingList', item.id); }} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                        <button onclick="addEventToDay()" class="bg-teal-600 text-white p-2 rounded hover:bg-teal-700 w-full md:w-auto">
+                            ${Icons.Plus('white')}
+                        </button>
+                     </div>
 
-                {/* --- 4. 기념품 (Souvenir) --- */}
-                {activeTab === 'souvenir' && (
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-gray-800 border-b pb-2">🎁 기념품 목록</h2>
-                        <div className="flex gap-2 mb-4 p-4 bg-gray-50 rounded-lg">
-                            {/* [한글 입력 수정 적용] */}
-                            <input 
-                                type="text" 
-                                value={inputs.souvenirItem} 
-                                onCompositionStart={() => setIsComposing(true)}
-                                onCompositionEnd={(e) => handleCompositionEnd('souvenirItem', e)}
-                                onChange={(e) => handleCompositionChange('souvenirItem', e)}
-                                placeholder="상품명" 
-                                className="flex-[2] border rounded p-2 text-sm"
-                            />
-                            {/* [한글 입력 수정 적용] */}
-                            <input 
-                                type="text" 
-                                value={inputs.souvenirReceiver} 
-                                onCompositionStart={() => setIsComposing(true)}
-                                onCompositionEnd={(e) => handleCompositionEnd('souvenirReceiver', e)}
-                                onChange={(e) => handleCompositionChange('souvenirReceiver', e)}
-                                onKeyPress={(e) => e.key === 'Enter' && addSouvenir()} 
-                                placeholder="받는 사람" 
-                                className="flex-1 border rounded p-2 text-sm"
-                            />
-                            <button onClick={addSouvenir} className="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-teal-50 text-teal-800">
-                                    <tr>
-                                        <th className="p-3 w-16 text-center">구매</th>
-                                        <th className="p-3">상품명</th>
-                                        <th className="p-3">받는 사람</th>
-                                        <th className="p-3 w-16 text-center">삭제</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.souvenirs.map(s => (
-                                        <tr key={s.id} className="border-b hover:bg-gray-50">
-                                            <td className="p-3 text-center"><input type="checkbox" checked={s.bought} onChange={() => toggleCheck('souvenirs', s.id, 'bought')} className="w-4 h-4 text-teal-600"/></td>
-                                            <td className={`p-3 ${s.bought ? 'line-through text-gray-400' : ''}`}>{s.item}</td>
-                                            <td className="p-3 text-gray-600 font-medium">{s.receiver}</td>
-                                            <td className="p-3 text-center"><button onClick={() => deleteItem('souvenirs', s.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-                {/* --- 5. 가계부 (Expense) --- */}
-                {activeTab === 'expense' && (
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-gray-800 border-b pb-2">💸 여행 가계부</h2>
-                        
-                        {/* Total Only */}
-                        <div className="bg-red-50 p-6 rounded-lg border border-red-100 text-center">
-                            <p className="text-sm text-red-500 mb-1">현재까지 총 지출</p>
-                            <p className="text-3xl font-bold text-red-700">{totalExpense.toLocaleString()}원</p>
-                        </div>
-
-                        <div className="flex gap-2 mb-4 flex-wrap">
-                            <input type="date" value={inputs.expenseDate} onChange={(e) => setInputValue('expenseDate', e.target.value)} className="border rounded p-2 text-sm"/>
-                            <select value={inputs.expenseCategory} onChange={(e) => setInputValue('expenseCategory', e.target.value)} className="border rounded p-2 text-sm">
-                                <option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option>
-                            </select>
-                            {/* [한글 입력 수정 적용] */}
-                            <input 
-                                type="text" 
-                                value={inputs.expenseItem} 
-                                onCompositionStart={() => setIsComposing(true)}
-                                onCompositionEnd={(e) => handleCompositionEnd('expenseItem', e)}
-                                onChange={(e) => handleCompositionChange('expenseItem', e)}
-                                placeholder="내용" 
-                                className="flex-1 border rounded p-2 text-sm min-w-[120px]"/>
-                            {/* [숫자 입력이므로 Composition 무시] */}
-                            <input 
-                                type="text" 
-                                inputMode="numeric" 
-                                value={inputs.expenseCost} 
-                                onChange={(e) => setInputValue('expenseCost', e.target.value.replace(/[^0-9]/g, ''))} 
-                                onKeyPress={(e) => e.key === 'Enter' && addExpense()} 
-                                placeholder="금액" 
-                                className="w-24 border rounded p-2 text-sm text-right"/>
-                            <button onClick={addExpense} className="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-sm">
-                                <thead className="bg-gray-100 sticky top-0">
-                                    <tr>
-                                        <th className="p-3 w-24">날짜</th>
-                                        <th className="p-3 w-20">분류</th>
-                                        <th className="p-3">내역</th>
-                                        <th className="p-3 text-right">금액</th>
-                                        <th className="p-3 w-12 text-center">삭제</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.expenses.sort((a,b) => new Date(b.date) - new Date(a.date)).map(e => (
-                                        <tr key={e.id} className="border-b hover:bg-gray-50">
-                                            <td className="p-3 text-gray-500 text-xs">{e.date}</td>
-                                            <td className="p-3"><span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded">{e.category}</span></td>
-                                            <td className="p-3">{e.item}</td>
-                                            <td className="p-3 text-right font-bold text-gray-700">{e.cost.toLocaleString()}원</td>
-                                            <td className="p-3 text-center"><button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={14}/></button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
-              </div>
-
-              {/* Confirmation Modal */}
-              {showModal && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">⚠️ 데이터 초기화</h3>
-                        <p className="text-gray-600 mb-6">모든 데이터가 삭제됩니다. 계속하시겠습니까?</p>
-                        <div className="flex justify-end gap-3">
-                            <button onClick={() => setShowModal(false)} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">취소</button>
-                            {/* 초기화 시 로컬 데이터 초기화 후 저장 */}
-                            <button onClick={() => { updateData(initialData); setShowModal(false); }} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">확인</button>
-                        </div>
-                    </div>
-                </div>
-              )}
-            </div>
-          );
-        }
+                     <!-- Events List -->
+                     <div class="space-y-3 relative">
+                        <div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+                        ${eventsListHTML}
+                     </div>
+                  </div>
+               </div>
+            `;
+        };
         
-        // Root 렌더링
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<App />);
+        const getPackingContentHTML = () => {
+            if (state.activeTab !== 'packing') return '';
+            
+            const listHTML = state.data.packingList.map(item => `
+                <div 
+                    key="${item.id}" 
+                    onclick="toggleCheck('packingList', ${item.id})" 
+                    class="flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all 
+                    ${item.checked ? 'bg-gray-100 border-gray-200' : 'bg-white border-teal-100 shadow-sm hover:shadow'}">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        ${item.checked ? Icons.CheckSquare('text-teal-600') : '<div class="w-4 h-4 border rounded border-gray-300"></div>'}
+                        <span class="truncate ${item.checked ? 'text-gray-400 line-through' : 'text-gray-800'}">${item.text}</span>
+                    </div>
+                    <button onclick="event.stopPropagation(); deleteItem('packingList', ${item.id});" class="text-gray-300 hover:text-red-500">${Icons.Trash2('currentColor')}</button>
+                </div>
+            `).join('');
 
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">🎒 준비물 리스트</h2>
+                    <div class="flex gap-2">
+                        <input 
+                            id="packing-input"
+                            type="text" 
+                            value="${state.inputs.packingItem}" 
+                            oninput="handleEphemeralInput('packingItem', this.value)" 
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="handleCompositionEnd()"
+                            onkeypress="if(event.key === 'Enter') addPacking()" 
+                            placeholder="준비물 입력..." 
+                            class="flex-1 border rounded-lg p-2"
+                        />
+                        <button onclick="addPacking()" class="bg-teal-600 text-white px-4 rounded-lg hover:bg-teal-700">추가</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                        ${listHTML}
+                    </div>
+                </div>
+            `;
+        };
+        
+        const getSouvenirContentHTML = () => {
+            if (state.activeTab !== 'souvenir') return '';
+            
+            const rowsHTML = state.data.souvenirs.map(s => `
+                <tr key="${s.id}" class="border-b hover:bg-gray-50">
+                    <td class="p-3 text-center"><input type="checkbox" ${s.bought ? 'checked' : ''} onchange="toggleCheck('souvenirs', ${s.id}, 'bought')" class="w-4 h-4 text-teal-600"/></td>
+                    <td class="p-3 ${s.bought ? 'line-through text-gray-400' : ''}">${s.item}</td>
+                    <td class="p-3 text-gray-600 font-medium">${s.receiver}</td>
+                    <td class="p-3 text-center"><button onclick="deleteItem('souvenirs', ${s.id})" class="text-gray-300 hover:text-red-500">${Icons.Trash2('currentColor')}</button></td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">🎁 기념품 목록</h2>
+                    <div class="flex gap-2 mb-4 p-4 bg-gray-50 rounded-lg">
+                        <input 
+                            id="souvenir-item-input"
+                            type="text" 
+                            value="${state.inputs.souvenirItem}" 
+                            oninput="handleEphemeralInput('souvenirItem', this.value)" 
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="handleCompositionEnd()"
+                            placeholder="상품명" 
+                            class="flex-[2] border rounded p-2 text-sm"
+                        />
+                        <input 
+                            id="souvenir-receiver-input"
+                            type="text" 
+                            value="${state.inputs.souvenirReceiver}" 
+                            oninput="handleEphemeralInput('souvenirReceiver', this.value)" 
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="handleCompositionEnd()"
+                            onkeypress="if(event.key === 'Enter') addSouvenir()" 
+                            placeholder="받는 사람" 
+                            class="flex-1 border rounded p-2 text-sm"
+                        />
+                        <button onclick="addSouvenir()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-teal-50 text-teal-800">
+                                <tr>
+                                    <th class="p-3 w-16 text-center">구매</th>
+                                    <th class="p-3">상품명</th>
+                                    <th class="p-3">받는 사람</th>
+                                    <th class="p-3 w-16 text-center">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHTML}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        };
+
+        const getExpenseContentHTML = () => {
+            if (state.activeTab !== 'expense') return '';
+            
+            const totalExpense = state.data?.expenses?.reduce((sum, item) => sum + Number(item.cost), 0) || 0;
+            const sortedExpenses = state.data.expenses.sort((a,b) => new Date(b.date) - new Date(a.date));
+            
+            const rowsHTML = sortedExpenses.map(e => `
+                <tr key="${e.id}" class="border-b hover:bg-gray-50">
+                    <td class="p-3 text-gray-500 text-xs">${e.date}</td>
+                    <td class="p-3"><span class="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded">${e.category}</span></td>
+                    <td class="p-3">${e.item}</td>
+                    <td class="p-3 text-right font-bold text-gray-700">${e.cost.toLocaleString()}원</td>
+                    <td class="p-3 text-center"><button onclick="deleteExpense(${e.id})" class="text-gray-300 hover:text-red-500">${Icons.Trash2('currentColor')}</button></td>
+                </tr>
+            `).join('');
+
+            return `
+                <div class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">💸 여행 가계부</h2>
+                    
+                    <!-- Total Only -->
+                    <div class="bg-red-50 p-6 rounded-lg border border-red-100 text-center">
+                        <p class="text-sm text-red-500 mb-1">현재까지 총 지출</p>
+                        <p class="text-3xl font-bold text-red-700">${totalExpense.toLocaleString()}원</p>
+                    </div>
+
+                    <div class="flex gap-2 mb-4 flex-wrap">
+                        <input type="date" value="${state.inputs.expenseDate}" onchange="handleEphemeralInput('expenseDate', this.value)" class="border rounded p-2 text-sm"/>
+                        <select value="${state.inputs.expenseCategory}" onchange="handleEphemeralInput('expenseCategory', this.value)" class="border rounded p-2 text-sm">
+                            <option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option>
+                        </select>
+                        <input 
+                            id="expense-item-input"
+                            type="text" 
+                            value="${state.inputs.expenseItem}" 
+                            oninput="handleEphemeralInput('expenseItem', this.value)" 
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="handleCompositionEnd()"
+                            placeholder="내용" 
+                            class="flex-1 border rounded p-2 text-sm min-w-[120px]"
+                        />
+                        <input 
+                            id="expense-cost-input"
+                            type="text" 
+                            inputMode="numeric" 
+                            value="${state.inputs.expenseCost}" 
+                            oninput="handleEphemeralInput('expenseCost', this.value.replace(/[^0-9]/g, ''))" 
+                            oncompositionstart="handleCompositionStart()"
+                            oncompositionend="handleCompositionEnd()"
+                            onkeypress="if(event.key === 'Enter') addExpense()" 
+                            placeholder="금액" 
+                            class="w-24 border rounded p-2 text-sm text-right"
+                        />
+                        <button onclick="addExpense()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead class="bg-gray-100 sticky top-0">
+                                <tr>
+                                    <th class="p-3 w-24">날짜</th>
+                                    <th class="p-3 w-20">분류</th>
+                                    <th class="p-3">내역</th>
+                                    <th class="p-3 text-right">금액</th>
+                                    <th class="p-3 w-12 text-center">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHTML}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        };
+        
+        const getModalHTML = () => {
+            if (!state.showModal) return '';
+            return `
+                <div id="confirmation-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">⚠️ 데이터 초기화</h3>
+                        <p class="text-gray-600 mb-6">모든 데이터가 삭제됩니다. 계속하시겠습니까?</p>
+                        <div class="flex justify-end gap-3">
+                            <button onclick="setState({ showModal: false })" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">취소</button>
+                            <button onclick="updateFirestore(initialData); setState({ showModal: false });" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">확인</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+
+        // Main Render Function
+        function render() {
+            const appContainer = document.getElementById('app-container');
+
+            if (!state.isAuthReady || !state.data) {
+                appContainer.innerHTML = `
+                    <div class="flex h-screen items-center justify-center text-teal-600 font-bold animate-pulse-fast">
+                        플래너 로딩 중...
+                    </div>
+                `;
+                return;
+            }
+
+            let tabContentHTML = '';
+            switch (state.activeTab) {
+                case 'overview': tabContentHTML = getOverviewContentHTML(); break;
+                case 'schedule': tabContentHTML = getScheduleContentHTML(); break;
+                case 'packing': tabContentHTML = getPackingContentHTML(); break;
+                case 'souvenir': tabContentHTML = getSouvenirContentHTML(); break;
+                case 'expense': tabContentHTML = getExpenseContentHTML(); break;
+            }
+
+            const totalHTML = `
+                <div class="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
+                    <!-- Header -->
+                    <header class="bg-teal-600 text-white p-4 shadow-md sticky top-0 z-20">
+                        <div class="max-w-4xl mx-auto flex justify-between items-center">
+                            <h1 class="text-xl font-bold flex items-center gap-2">
+                                ${Icons.MapPin('white')} 나만의 여행 플래너
+                            </h1>
+                            <div class="flex items-center gap-3">
+                                <button onclick="setState({ showModal: true })" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">
+                                    ${Icons.RotateCcw('white')} 초기화
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <div class="max-w-4xl mx-auto p-4">
+                        <!-- Navigation Tabs -->
+                        <div class="flex gap-1 mb-6 bg-white p-2 rounded-lg shadow-sm overflow-x-auto justify-between">
+                            ${getTabsHTML()}
+                        </div>
+                        
+                        <!-- Tab Content -->
+                        <div id="tab-content">
+                            ${tabContentHTML}
+                        </div>
+                    </div>
+                    
+                    <!-- Confirmation Modal -->
+                    ${getModalHTML()}
+                </div>
+            `;
+            
+            // Render the main structure
+            appContainer.innerHTML = totalHTML;
+        }
+
+        // --- Initialization ---
+        
+        // Expose functions to global scope for HTML event handlers
+        window.setState = setState;
+        window.updateFirestore = updateFirestore;
+        window.handleCompositionStart = handleCompositionStart;
+        window.handleCompositionEnd = handleCompositionEnd;
+        window.handleOverviewChange = handleOverviewChange;
+        window.commitOverviewChange = commitOverviewChange;
+        window.handleEphemeralInput = handleEphemeralInput;
+        window.addDay = addDay;
+        window.deleteDay = deleteDay;
+        window.updateDayDate = updateDayDate;
+        window.addEventToDay = addEventToDay;
+        window.deleteEvent = deleteEvent;
+        window.addExpense = addExpense;
+        window.deleteExpense = deleteExpense;
+        window.addPacking = addPacking;
+        window.addSouvenir = addSouvenir;
+        window.toggleCheck = toggleCheck;
+        window.deleteItem = deleteItem;
+
+
+        // Start the application lifecycle
+        document.addEventListener('DOMContentLoaded', () => {
+            loadGoogleMapsScript(); // Load Google Maps first
+            authenticate(); // Then start Firebase auth and data sync
+        });
     </script>
 </body>
 </html>
+
 
