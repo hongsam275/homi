@@ -43,8 +43,7 @@
         // --- Configuration & Global Variables (MUST BE DEFINED HERE) ---
         const GOOGLE_MAPS_API_KEY = 'AIzaSyBwZ1hfLte8a0KcT9V2Tht3da_gi2tC4Rw'; // [중요] 여기에 Google Maps API Key를 입력하세요 (Places API 활성화 필수)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        // Note: Corrected typo in __firebase_config usage
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(____firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Firebase Initialization
@@ -68,9 +67,9 @@
             showModal: false,
             selectedDayIndex: 0,
             isMapLoaded: false,
-            isComposing: false, // 한국어 입력 중 여부 (Directly updated for stability)
+            isComposing: false, // 한국어 입력 중 여부
             
-            // Overview Inputs (Local temporary state for stability/composition fix)
+            // Overview Inputs (Local temporary state for composition fix)
             overviewInputs: { 
                 destination: '', 
                 startDate: '', 
@@ -116,8 +115,6 @@
 
         /**
          * 상태를 업데이트하고 UI 렌더링을 트리거합니다.
-         * 이 함수는 입력 안정성을 위해 연속적인 키 입력에서는 호출되지 않아야 합니다.
-         * (탭 전환, 데이터 로드/변경, 아이템 추가/삭제 시 호출)
          * @param {object} newState - 업데이트할 상태 객체
          */
         function setState(newState) {
@@ -136,7 +133,6 @@
             Trash2: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M15 2h-6l-1 4h8z"/></svg>`,
             MapPin: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>`,
             RotateCcw: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M3 13a9 9 0 1 0 4-8"/><path d="M3 10v-3h3"/></svg>`,
-            Search: (c = 'currentColor') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
         };
 
         // --- Firebase Logic ---
@@ -167,7 +163,6 @@
                 }
                 
                 // Firestore 데이터가 변경되면 로컬 상태를 업데이트하고 렌더링
-                // Note: onSnapshot listener must still call setState/render to update UI
                 setState({ 
                     data: fetchedData,
                     overviewInputs: {
@@ -206,58 +201,26 @@
             }
         };
 
-        // --- Input Composition & Stability Handlers (Key Fixes) ---
+        // --- Input Composition Handlers (Korean Input Fix) ---
 
-        // 1. 한국어 입력 시작 시 플래그 설정 (render 호출 방지 위해 직접 상태 업데이트)
-        const handleCompositionStart = () => { 
-            state.isComposing = true;
-        };
-
-        /**
-         * 2. 한국어 입력 종료 시 플래그 해제 및 최종 값 커밋 처리
-         * @param {HTMLElement} element - 입력 엘리먼트
-         * @param {string} key - state.inputs 또는 state.overviewInputs의 키
-         * @param {boolean} commitToFirestore - Firestore에 커밋이 필요한 경우 (Overview 필드)
-         */
-        const handleCompositionEnd = (element, key, commitToFirestore = false) => {
-            // 1. Composition 플래그 해제 (setState 방지)
-            state.isComposing = false;
-            
-            // 2. Overview 또는 Ephemeral 상태에 최종 값 반영 (setState 방지)
-            if (commitToFirestore) {
-                state.overviewInputs[key] = element.value;
-            } else {
-                state.inputs[key] = element.value;
-            }
-
-            // 3. Overview 필드인 경우에만 Firestore 커밋
-            if (commitToFirestore) {
-                commitOverviewChange(key, element.value);
-            }
+        const handleCompositionStart = () => setState({ isComposing: true });
+        const handleCompositionEnd = () => setState({ isComposing: false });
+        
+        // Ephemeral Input Handler (for packing, souvenir, event forms)
+        const handleEphemeralInput = (key, value) => {
+            const newInputs = { ...state.inputs, [key]: value };
+            setState({ inputs: newInputs });
         };
         
-        // 3. Ephemeral Input Handler (Form 필드: Packing, Souvenir, Expense, Event)
-        // **중요: render()를 호출하지 않고 로컬 상태만 업데이트하여 포커스를 유지합니다.**
-        const handleStableEphemeralInput = (key, value) => {
-            state.inputs[key] = value;
-            // Note: DOM value is already updated by the oninput event itself.
-        };
-        
-        // 4. Overview Input Handler (Destination)
-        // **중요: render()를 호출하지 않고 로컬 상태만 업데이트하여 포커스를 유지합니다.**
-        const handleStableOverviewInput = (key, value) => {
-            state.overviewInputs[key] = value;
+        // Overview Input Handler (for local state only)
+        const handleOverviewChange = (key, value) => {
+            const newOverviewInputs = { ...state.overviewInputs, [key]: value };
+            setState({ overviewInputs: newOverviewInputs });
         };
 
-        /**
-         * 5. Overview Input Commit (onblur 또는 compositionend 시 Firestore에 저장)
-         * @param {string} key - state.overviewInputs의 키
-         * @param {string|null} finalValue - compositionend에서 전달된 최종 값 (없으면 로컬 상태 사용)
-         */
+        // Overview Input Commit (only called on blur or composition end)
         const commitOverviewChange = (key, finalValue = null) => {
-            // compositionend는 finalValue를 전달하여 isComposing 체크를 우회하고 커밋
-            // onblur는 isComposing을 체크하고 커밋 (compositionend 직후 onblur가 발생할 수 있기 때문)
-            if (state.isComposing && finalValue === null) return; 
+            if (state.isComposing) return; // Composition 중이면 커밋하지 않음
             
             const valueToCommit = finalValue ?? state.overviewInputs[key];
             if (state.data && state.data[key] !== valueToCommit) {
@@ -266,7 +229,7 @@
             }
         };
         
-        // --- Maps Logic (unchanged) ---
+        // --- Maps Logic ---
 
         const loadGoogleMapsScript = () => {
             if (window.google && window.google.maps) {
@@ -340,12 +303,10 @@
         };
         
         const initAutocomplete = () => {
-            // Autocomplete는 Schedule 탭에서만 활성화됩니다.
             if (!state.isMapLoaded || state.activeTab !== 'schedule' || !document.getElementById('autocomplete-input')) return;
 
             const input = document.getElementById('autocomplete-input');
 
-            // 기존 리스너 클리어
             if (autocompleteInstanceRef.current) {
                 window.google.maps.event.clearInstanceListeners(autocompleteInstanceRef.current);
             }
@@ -355,16 +316,15 @@
             const listener = autocompleteInstanceRef.current.addListener("place_changed", () => {
                 const place = autocompleteInstanceRef.current.getPlace();
                 if (place.geometry) {
-                    // Ephemeral Input Handler 사용
-                    handleStableEphemeralInput('eventPlaceName', place.name);
-                    handleStableEphemeralInput('eventLat', place.geometry.location.lat());
-                    handleStableEphemeralInput('eventLng', place.geometry.location.lng());
+                    handleEphemeralInput('eventPlaceName', place.name);
+                    handleEphemeralInput('eventLat', place.geometry.location.lat());
+                    handleEphemeralInput('eventLng', place.geometry.location.lng());
                     input.value = place.name; // Autocomplete가 선택한 이름으로 input 업데이트
                 }
             });
         };
 
-        // --- Action Handlers (Calling setState/render only when necessary) ---
+        // --- Action Handlers ---
 
         const addDay = () => {
             const newDayNum = state.data.schedule.length + 1;
@@ -388,7 +348,6 @@
         };
 
         const addEventToDay = () => {
-            // eventTitle은 handleStableEphemeralInput을 통해 state.inputs에 반영됨
             if (!state.inputs.eventTitle) return;
             
             const newEvent = {
@@ -408,7 +367,7 @@
 
             updateFirestore({ ...state.data, schedule: newSchedule });
             
-            // Ephemeral inputs reset (This calls setState/render, which is fine after form submission)
+            // Ephemeral inputs reset
             const resetInputs = { 
                 eventTitle: '', eventPlaceName: '', eventLat: null, eventLng: null 
             };
@@ -424,7 +383,6 @@
         };
         
         const addExpense = () => {
-            // expenseCost, expenseItem은 handleStableEphemeralInput을 통해 state.inputs에 반영됨
             const cost = parseInt(state.inputs.expenseCost.replace(/,/g, ''));
             if (!state.inputs.expenseItem || isNaN(cost)) return;
             const newExpenses = [...state.data.expenses, { id: Date.now(), category: state.inputs.expenseCategory, item: state.inputs.expenseItem, cost, date: state.inputs.expenseDate }];
@@ -440,14 +398,12 @@
         };
 
         const addPacking = () => {
-            // packingItem은 handleStableEphemeralInput을 통해 state.inputs에 반영됨
             if (!state.inputs.packingItem) return;
             updateFirestore({ ...state.data, packingList: [...state.data.packingList, { id: Date.now(), text: state.inputs.packingItem, checked: false }]});
             setState({ inputs: { ...state.inputs, packingItem: '' }});
         };
 
         const addSouvenir = () => {
-            // souvenirItem, souvenirReceiver는 handleStableEphemeralInput을 통해 state.inputs에 반영됨
             if (!state.inputs.souvenirItem) return;
             updateFirestore({ ...state.data, souvenirs: [...state.data.souvenirs, { id: Date.now(), item: state.inputs.souvenirItem, receiver: state.inputs.souvenirReceiver, bought: false }]});
             setState({ inputs: { ...state.inputs, souvenirItem: '', souvenirReceiver: '' }});
@@ -488,9 +444,10 @@
         const getOverviewContentHTML = () => {
             const totalExpense = state.data?.expenses?.reduce((sum, item) => sum + Number(item.cost), 0) || 0;
             
+            // Map logic is external, just need the container
             if (state.activeTab !== 'overview') return '';
 
-            // Map initialization must be done after the map container is in the DOM
+            // This must be inside the render call so we can re-attach the mapRef
             setTimeout(() => {
                 mapRef.overview = document.getElementById('overview-map-container');
                 if (state.isMapLoaded && mapRef.overview) initOverviewMap();
@@ -508,12 +465,11 @@
                             id="destination-input"
                             type="text" 
                             value="${state.overviewInputs.destination}" 
-                            oninput="handleStableOverviewInput('destination', this.value)" 
+                            oninput="handleOverviewChange('destination', this.value)" 
                             onblur="commitOverviewChange('destination')"
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'destination', true)"
+                            oncompositionend="commitOverviewChange('destination', this.value)"
                             class="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-teal-500"
-                            placeholder="여행지를 입력해 주세요"
                         />
                      </div>
                      <div class="bg-red-50 border border-red-100 rounded-lg p-3 flex flex-col justify-center">
@@ -627,7 +583,7 @@
                         <input 
                             type="time" 
                             value="${state.inputs.eventTime}" 
-                            onchange="handleStableEphemeralInput('eventTime', this.value)"
+                            onchange="handleEphemeralInput('eventTime', this.value)"
                             class="border rounded p-2 text-sm w-full"
                         />
                         <input 
@@ -635,9 +591,9 @@
                             type="text" 
                             placeholder="일정 제목 (예: 점심 식사)" 
                             value="${state.inputs.eventTitle}" 
-                            oninput="handleStableEphemeralInput('eventTitle', this.value)"
+                            oninput="handleEphemeralInput('eventTitle', this.value)"
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'eventTitle')"
+                            oncompositionend="handleCompositionEnd()"
                             class="border rounded p-2 text-sm w-full"
                         />
                         <div class="relative w-full">
@@ -689,9 +645,9 @@
                             id="packing-input"
                             type="text" 
                             value="${state.inputs.packingItem}" 
-                            oninput="handleStableEphemeralInput('packingItem', this.value)" 
+                            oninput="handleEphemeralInput('packingItem', this.value)" 
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'packingItem')"
+                            oncompositionend="handleCompositionEnd()"
                             onkeypress="if(event.key === 'Enter') addPacking()" 
                             placeholder="준비물 입력..." 
                             class="flex-1 border rounded-lg p-2"
@@ -720,27 +676,27 @@
             return `
                 <div class="space-y-6">
                     <h2 class="text-2xl font-bold text-gray-800 border-b pb-2">🎁 기념품 목록</h2>
-                    <div class="flex gap-2 mb-4 p-4 bg-gray-50 rounded-lg flex-wrap">
+                    <div class="flex gap-2 mb-4 p-4 bg-gray-50 rounded-lg">
                         <input 
                             id="souvenir-item-input"
                             type="text" 
                             value="${state.inputs.souvenirItem}" 
-                            oninput="handleStableEphemeralInput('souvenirItem', this.value)" 
+                            oninput="handleEphemeralInput('souvenirItem', this.value)" 
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'souvenirItem')"
+                            oncompositionend="handleCompositionEnd()"
                             placeholder="상품명" 
-                            class="flex-[2] border rounded p-2 text-sm min-w-[100px]"
+                            class="flex-[2] border rounded p-2 text-sm"
                         />
                         <input 
                             id="souvenir-receiver-input"
                             type="text" 
                             value="${state.inputs.souvenirReceiver}" 
-                            oninput="handleStableEphemeralInput('souvenirReceiver', this.value)" 
+                            oninput="handleEphemeralInput('souvenirReceiver', this.value)" 
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'souvenirReceiver')"
+                            oncompositionend="handleCompositionEnd()"
                             onkeypress="if(event.key === 'Enter') addSouvenir()" 
                             placeholder="받는 사람" 
-                            class="flex-1 border rounded p-2 text-sm min-w-[100px]"
+                            class="flex-1 border rounded p-2 text-sm"
                         />
                         <button onclick="addSouvenir()" class="bg-teal-600 text-white px-4 rounded hover:bg-teal-700 text-sm">추가</button>
                     </div>
@@ -790,17 +746,17 @@
                     </div>
 
                     <div class="flex gap-2 mb-4 flex-wrap">
-                        <input type="date" value="${state.inputs.expenseDate}" onchange="handleStableEphemeralInput('expenseDate', this.value)" class="border rounded p-2 text-sm"/>
-                        <select value="${state.inputs.expenseCategory}" onchange="handleStableEphemeralInput('expenseCategory', this.value)" class="border rounded p-2 text-sm">
+                        <input type="date" value="${state.inputs.expenseDate}" onchange="handleEphemeralInput('expenseDate', this.value)" class="border rounded p-2 text-sm"/>
+                        <select value="${state.inputs.expenseCategory}" onchange="handleEphemeralInput('expenseCategory', this.value)" class="border rounded p-2 text-sm">
                             <option>식비</option><option>교통</option><option>숙박</option><option>쇼핑</option><option>기타</option>
                         </select>
                         <input 
                             id="expense-item-input"
                             type="text" 
                             value="${state.inputs.expenseItem}" 
-                            oninput="handleStableEphemeralInput('expenseItem', this.value)" 
+                            oninput="handleEphemeralInput('expenseItem', this.value)" 
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'expenseItem')"
+                            oncompositionend="handleCompositionEnd()"
                             placeholder="내용" 
                             class="flex-1 border rounded p-2 text-sm min-w-[120px]"
                         />
@@ -809,9 +765,9 @@
                             type="text" 
                             inputMode="numeric" 
                             value="${state.inputs.expenseCost}" 
-                            oninput="handleStableEphemeralInput('expenseCost', this.value.replace(/[^0-9]/g, ''))" 
+                            oninput="handleEphemeralInput('expenseCost', this.value.replace(/[^0-9]/g, ''))" 
                             oncompositionstart="handleCompositionStart()"
-                            oncompositionend="handleCompositionEnd(this, 'expenseCost')"
+                            oncompositionend="handleCompositionEnd()"
                             onkeypress="if(event.key === 'Enter') addExpense()" 
                             placeholder="금액" 
                             class="w-24 border rounded p-2 text-sm text-right"
@@ -917,18 +873,14 @@
 
         // --- Initialization ---
         
-        // Expose stable functions to global scope for HTML event handlers
+        // Expose functions to global scope for HTML event handlers
         window.setState = setState;
         window.updateFirestore = updateFirestore;
-        
-        // Stabilized Input Handlers
         window.handleCompositionStart = handleCompositionStart;
         window.handleCompositionEnd = handleCompositionEnd;
-        window.handleStableOverviewInput = handleStableOverviewInput;
+        window.handleOverviewChange = handleOverviewChange;
         window.commitOverviewChange = commitOverviewChange;
-        window.handleStableEphemeralInput = handleStableEphemeralInput;
-        
-        // Action Handlers
+        window.handleEphemeralInput = handleEphemeralInput;
         window.addDay = addDay;
         window.deleteDay = deleteDay;
         window.updateDayDate = updateDayDate;
@@ -950,4 +902,3 @@
     </script>
 </body>
 </html>
-
