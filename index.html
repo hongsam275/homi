@@ -183,7 +183,8 @@
                     }
                 });
                 
-                if (state.activeTab === 'overview' && state.isMapLoaded) {
+                // 데이터 업데이트 시 지도가 활성화되어 있으면 마커 업데이트
+                if (state.activeTab === 'overview' && state.isMapLoaded && mapInstanceRef.current) {
                      updateMapMarkers();
                 }
             }, (error) => {
@@ -276,28 +277,39 @@
             script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
             script.async = true;
             script.defer = true;
-            script.onload = () => setState({ isMapLoaded: true });
+            // 맵 로드 성공 시 상태 업데이트 및 렌더링
+            script.onload = () => {
+                setState({ isMapLoaded: true });
+            };
             document.head.appendChild(script);
         };
         
         const initOverviewMap = () => {
-            if (!state.isMapLoaded || mapInstanceRef.current || !mapRef.overview || !window.google?.maps) return;
+            // 맵 인스턴스가 없거나, 맵 엘리먼트가 없으면 초기화하지 않음
+            if (mapInstanceRef.current || !mapRef.overview || !window.google?.maps) return;
+
+            // 맵 초기화
             mapInstanceRef.current = new window.google.maps.Map(mapRef.overview, {
-                center: { lat: 33.3846, lng: 126.5535 },
+                center: { lat: 33.3846, lng: 126.5535 }, // 제주도 중앙
                 zoom: 10,
+                fullscreenControl: false,
+                streetViewControl: false,
             });
             updateMapMarkers();
         };
 
         const updateMapMarkers = () => {
             if (!mapInstanceRef.current || !state.data?.schedule) return;
+            
+            // 기존 마커 제거
             markersRef.current.forEach(m => m.setMap(null));
             markersRef.current = [];
 
             const bounds = new window.google.maps.LatLngBounds();
             let hasMarkers = false;
-            const colors = ['red', 'blue', 'green', 'orange', 'purple', 'yellow'];
-
+            const colors = ['red', 'blue', 'green', 'orange', 'purple', 'yellow', 'pink', 'light-blue'];
+            
+            // 일정의 모든 이벤트를 순회하며 마커 추가
             state.data.schedule.forEach((day, idx) => {
                 if(day.events) {
                     day.events.forEach(event => {
@@ -308,11 +320,12 @@
                             const marker = new window.google.maps.Marker({
                                 position: { lat: event.lat, lng: event.lng },
                                 map: mapInstanceRef.current,
-                                title: event.title,
+                                title: `${day.day}일차: ${event.title}`,
                                 icon: iconUrl
                             });
+                            // 정보창 추가
                             const infoWindow = new window.google.maps.InfoWindow({
-                                content: `<div style="color:black"><b>Day ${day.day}</b><br/>${event.title}<br/>${event.time}</div>`
+                                content: `<div style="color:black; font-family: sans-serif;"><b>Day ${day.day} - ${event.time}</b><br/>${event.title}<br/><span style="font-size: 0.9em;">${event.placeName || '장소 정보 없음'}</span></div>`
                             });
                             marker.addListener("click", () => infoWindow.open(mapInstanceRef.current, marker));
                             markersRef.current.push(marker);
@@ -322,7 +335,16 @@
                     });
                 }
             });
-            if (hasMarkers) mapInstanceRef.current.fitBounds(bounds);
+            
+            // 마커가 하나라도 있으면 뷰포트 조정
+            if (hasMarkers) {
+                if (markersRef.current.length === 1) {
+                    mapInstanceRef.current.setCenter(markersRef.current[0].getPosition());
+                    mapInstanceRef.current.setZoom(14);
+                } else {
+                    mapInstanceRef.current.fitBounds(bounds);
+                }
+            }
         };
         
         const initAutocomplete = () => {
@@ -332,9 +354,11 @@
             
             // 이전에 생성된 리스너가 있다면 제거
             if (autocompleteInstanceRef.current) {
-                window.google.maps.event.clearInstanceListeners(autocompleteInstanceRef.current);
+                // 이전에 Autocomplete 인스턴스가 존재했다면, 새 인스턴스를 생성하기 전에 기존 리스너를 정리할 필요는 없지만, 
+                // 전체 DOM이 다시 렌더링되므로 새 인스턴스를 만들고 리스너를 붙여야 합니다.
             }
             
+            // Autocomplete 인스턴스 재생성
             autocompleteInstanceRef.current = new window.google.maps.places.Autocomplete(input);
             autocompleteInstanceRef.current.addListener("place_changed", () => {
                 const place = autocompleteInstanceRef.current.getPlace();
@@ -470,7 +494,7 @@
                 { id: 'expense', label: '가계부', icon: Icons.DollarSign },
             ];
             return tabs.map(tab => `
-                <button onclick="setState({ activeTab: '${tab.id}' }); render();"
+                <button onclick="setState({ activeTab: '${tab.id}' });"
                     class="flex-1 min-w-[50px] py-1 px-2 rounded-md flex flex-col items-center justify-center text-xs gap-0.5 transition-all
                     ${state.activeTab === tab.id ? 'bg-teal-100 text-teal-700 font-bold shadow-inner' : 'text-gray-500 hover:bg-gray-100'}"
                 >${tab.icon('currentColor')} ${tab.label}</button>
@@ -479,8 +503,7 @@
 
         const getOverviewContentHTML = () => {
             if (state.activeTab !== 'overview') return '';
-            // 맵 초기화 지연
-            setTimeout(() => { mapRef.overview = document.getElementById('overview-map-container'); if (state.isMapLoaded && mapRef.overview) initOverviewMap(); }, 0);
+            // 맵 초기화 로직은 render() 함수 끝에서 실행되도록 변경했습니다.
             const totalExpense = state.data?.expenses?.reduce((sum, item) => sum + Number(item.cost), 0) || 0;
             return `
                <div class="space-y-6 animate-fade-in">
@@ -513,11 +536,11 @@
         const getScheduleContentHTML = () => { 
             if (state.activeTab !== 'schedule') return ''; 
             const currentDay = state.data.schedule[state.selectedDayIndex]; 
-            // 장소 검색 초기화 지연
-            setTimeout(() => initAutocomplete(), 50); 
+            
+            // Autocomplete 초기화 로직은 render() 함수 끝에서 실행되도록 변경했습니다.
             
             const dayTabsHTML = state.data.schedule.map((day, idx) => `
-                <button onclick="setState({ selectedDayIndex: ${idx} }); render();" 
+                <button onclick="setState({ selectedDayIndex: ${idx} });" 
                     class="flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition whitespace-nowrap border 
                     ${state.selectedDayIndex === idx ? 'bg-teal-600 text-white border-teal-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'}">
                     Day ${day.day}
@@ -742,10 +765,25 @@
 
             appContainer.innerHTML = `
                 <div class="min-h-screen bg-gray-50 font-sans text-gray-800 pb-20">
-                    <header class="bg-teal-600 text-white p-4 shadow-md sticky top-0 z-20"><div class="max-w-4xl mx-auto flex justify-between items-center"><h1 class="text-xl font-bold flex items-center gap-2">${Icons.MapPin('white')} 나만의 여행 플래너</h1><div class="flex items-center gap-3"><button onclick="setState({ showModal: true }); render();" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">${Icons.RotateCcw('white')} 초기화</button></div></div></header>
+                    <header class="bg-teal-600 text-white p-4 shadow-md sticky top-0 z-20"><div class="max-w-4xl mx-auto flex justify-between items-center"><h1 class="text-xl font-bold flex items-center gap-2">${Icons.MapPin('white')} 나만의 여행 플래너</h1><div class="flex items-center gap-3"><button onclick="setState({ showModal: true });" class="text-xs bg-teal-700 hover:bg-teal-800 px-3 py-1 rounded flex items-center gap-1 transition">${Icons.RotateCcw('white')} 초기화</button></div></div></header>
                     <div class="max-w-4xl mx-auto p-4"><div class="flex gap-1 mb-6 bg-white p-2 rounded-lg shadow-sm overflow-x-auto justify-between">${getTabsHTML()}</div><div id="tab-content">${content}</div></div>
-                    ${state.showModal ? `<div id="confirmation-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full"><h3 class="text-xl font-bold text-gray-800 mb-4">⚠️ 데이터 초기화</h3><p class="text-gray-600 mb-6">모든 데이터가 삭제됩니다. 계속하시겠습니까?</p><div class="flex justify-end gap-3"><button onclick="setState({ showModal: false }); render();" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">취소</button><button onclick="updateFirestore(initialData); setState({ showModal: false });" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">확인</button></div></div></div>` : ''}
+                    ${state.showModal ? `<div id="confirmation-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50"><div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full"><h3 class="text-xl font-bold text-gray-800 mb-4">⚠️ 데이터 초기화</h3><p class="text-gray-600 mb-6">모든 데이터가 삭제됩니다. 계속하시겠습니까?</p><div class="flex justify-end gap-3"><button onclick="setState({ showModal: false });" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">취소</button><button onclick="updateFirestore(initialData); setState({ showModal: false });" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">확인</button></div></div></div>` : ''}
                 </div>`;
+
+            // --- Post-Render Map & Autocomplete Initialization ---
+            // HTML 콘텐츠가 DOM에 삽입된 후에만 Google Maps 관련 초기화 코드를 실행합니다.
+            if (state.isMapLoaded) {
+                if (state.activeTab === 'overview') {
+                    // 1. 개요 맵 초기화
+                    mapRef.overview = document.getElementById('overview-map-container');
+                    if (mapRef.overview) {
+                        initOverviewMap();
+                    }
+                } else if (state.activeTab === 'schedule') {
+                    // 2. 장소 검색 자동 완성 초기화
+                    initAutocomplete();
+                }
+            }
         }
 
         // --- Init: Global Functions and Lifecycles ---
