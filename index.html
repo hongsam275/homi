@@ -91,7 +91,7 @@ async function init(){
   try{
     // Google Maps API 키를 스크립트에 삽입하여 로드 시작
     const mapScript = document.getElementById('google-maps-script');
-    mapScript.src += `${MAP_KEY}&libraries=places&callback=initMap`;
+    mapScript.src += `${AIzaSyDCEtx7NAswlKEAm4BJy4IE-zy6DB9f9UU}&libraries=places&callback=initMap`;
     
     // Firebase 초기화 및 인증 시작
     const app=initializeApp(FIREBASE_CONFIG); db=getFirestore(app); auth=getAuth(app);
