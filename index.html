@@ -40,7 +40,7 @@
 
 <script>
     // ==========================================
-    // 🚨 [필수 수정 1] 구글 맵 API 키: 본인의 키로 교체하세요. (AIzaSyBwZ1hfLte8a0KcT9V2Tht3da_gi2tC4Rw)
+    // 🚨 [필수 수정 1] 구글 맵 API 키: 본인의 키로 교체하세요. (반드시 따옴표로 감싸야 합니다!)
     const MAP_KEY = 'AIzaSyBwZ1hfLte8a0KcT9V2Tht3da_gi2tC4Rw'; 
 
     // 🚨 [필수 수정 2] Firebase 프로젝트 설정값: 본인의 설정 객체로 교체하세요.
@@ -52,7 +52,6 @@
         messagingSenderId: "369088279206",
         appId: "1:369088279206:web:197df9cc38895a2e7afa67",
         measurementId: "G-8CP3MWTD7R"
-
     };
     // ==========================================
 </script>
@@ -91,7 +90,8 @@ async function init(){
   try{
     // Google Maps API 키를 스크립트에 삽입하여 로드 시작
     const mapScript = document.getElementById('google-maps-script');
-    mapScript.src += `${AIzaSyBwZ1hfLte8a0KcT9V2Tht3da_gi2tC4Rw}&libraries=places&callback=initMap`;
+    // 🚨 여기서 MAP_KEY를 읽어와 src에 추가합니다. MAP_KEY 변수 사용 시 따옴표를 넣지 않습니다.
+    mapScript.src += `${MAP_KEY}&libraries=places&callback=initMap`;
     
     // Firebase 초기화 및 인증 시작
     const app=initializeApp(FIREBASE_CONFIG); db=getFirestore(app); auth=getAuth(app);
