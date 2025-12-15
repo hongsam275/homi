@@ -280,7 +280,11 @@
                 return;
             }
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=onGoogleMapLoaded`;
+window.onGoogleMapLoaded = () => {
+  setState({ isMapLoaded: true });
+};
+
             script.async = true;
             script.defer = true;
             script.onload = () => {
